@@ -1,0 +1,69 @@
+name: 'Windows Sign and Verify App Binaries'
+description: 'Signs app binaries via SignPath, replaces staged binaries, and verifies signatures.'
+author: 'zhangyu528'
+
+inputs:
+  organization_id:
+    description: 'SignPath Organization ID.'
+    required: true
+  project_slug:
+    description: 'SignPath Project slug.'
+    required: true
+  signing_policy_slug:
+    description: 'SignPath Signing Policy slug.'
+    required: true
+  artifact_configuration_slug:
+    description: 'SignPath artifact configuration slug for app binaries.'
+    required: true
+  artifact_name:
+    description: 'Artifact upload name for unsigned app binaries.'
+    required: true
+  artifact_paths:
+    description: 'Newline-delimited unsigned app binary paths.'
+    required: true
+  signed_apps_dir:
+    description: 'Directory for signed app outputs.'
+    required: false
+    default: 'artifacts/signed/apps'
+  tray_target:
+    description: 'Target path for tray executable.'
+    required: false
+    default: 'artifacts/stage/tray/Aiden.TrayMonitor.exe'
+  agent_target:
+    description: 'Target path for agent executable.'
+    required: false
+    default: 'artifacts/stage/agent/Aiden.RuntimeAgent.exe'
+
+outputs:
+  artifact_id:
+    description: 'Uploaded unsigned app artifact id.'
+    value: ${{ steps.upload.outputs.artifact-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload unsigned app binaries
+      id: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.artifact_paths }}
+
+    - name: Sign app binaries
+      uses: signpath/github-action-submit-signing-request@v2
+      with:
+        organization-id: ${{ inputs.organization_id }}
+        project-slug: ${{ inputs.project_slug }}
+        signing-policy-slug: ${{ inputs.signing_policy_slug }}
+        artifact-configuration-slug: ${{ inputs.artifact_configuration_slug }}
+        github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+        wait-for-completion: true
+        output-artifact-directory: ${{ inputs.signed_apps_dir }}
+
+    - name: Replace staged binaries and verify
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/sign-and-verify-app-binaries.ps1" `
+          -SignedAppsDir '${{ inputs.signed_apps_dir }}' `
+          -TrayTarget '${{ inputs.tray_target }}' `
+          -AgentTarget '${{ inputs.agent_target }}'

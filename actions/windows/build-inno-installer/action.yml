@@ -1,0 +1,74 @@
+name: 'Windows Build Inno Installer'
+description: 'Builds Windows installer using Inno Setup and bundled script template.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  source_dir:
+    description: 'Staged package directory for installer input.'
+    required: false
+    default: 'artifacts/stage/package'
+  output_dir:
+    description: 'Installer output directory.'
+    required: false
+    default: 'artifacts/installer'
+  app_name:
+    description: 'Application name.'
+    required: false
+    default: 'Aiden'
+  installer_bitness:
+    description: 'Installer bitness suffix in output filename.'
+    required: false
+    default: 'win-x64'
+  tray_exe_name:
+    description: 'Tray executable filename.'
+    required: false
+    default: 'Aiden.TrayMonitor.exe'
+  agent_exe_name:
+    description: 'Agent executable filename.'
+    required: false
+    default: 'Aiden.RuntimeAgent.exe'
+  postinstall_launch_exe:
+    description: 'Executable filename to launch after installation.'
+    required: false
+    default: 'Aiden.TrayMonitor.exe'
+  autorun_exe:
+    description: 'Executable filename to register in HKCU Run.'
+    required: false
+    default: 'Aiden.RuntimeAgent.exe'
+  setup_icon_name:
+    description: 'Icon filename expected under source_dir.'
+    required: false
+    default: 'aiden.ico'
+  output_name_prefix:
+    description: 'Installer output file prefix.'
+    required: false
+    default: 'Aiden-Setup'
+
+outputs:
+  installer_path:
+    description: 'Resolved generated installer path.'
+    value: ${{ steps.build.outputs.installer_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build Inno Setup installer
+      id: build
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/windows-build-inno-installer.ps1" `
+          -Version '${{ inputs.version }}' `
+          -SourceDir '${{ inputs.source_dir }}' `
+          -OutputDir '${{ inputs.output_dir }}' `
+          -AppName '${{ inputs.app_name }}' `
+          -InstallerBitness '${{ inputs.installer_bitness }}' `
+          -TrayExeName '${{ inputs.tray_exe_name }}' `
+          -AgentExeName '${{ inputs.agent_exe_name }}' `
+          -PostInstallLaunchExe '${{ inputs.postinstall_launch_exe }}' `
+          -AutoRunExe '${{ inputs.autorun_exe }}' `
+          -SetupIconName '${{ inputs.setup_icon_name }}' `
+          -OutputNamePrefix '${{ inputs.output_name_prefix }}' `
+          -ActionPath '${{ github.action_path }}'

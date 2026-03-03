@@ -1,0 +1,60 @@
+name: 'macOS Build Bundle'
+description: 'Builds macOS .app using xcodebuild archive + exportArchive.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  workspace_path:
+    description: 'Path to .xcworkspace (exactly one of workspace_path or project_path is required).'
+    required: false
+    default: ''
+  project_path:
+    description: 'Path to .xcodeproj (exactly one of workspace_path or project_path is required).'
+    required: false
+    default: ''
+  scheme:
+    description: 'Xcode scheme to build.'
+    required: true
+  configuration:
+    description: 'Xcode build configuration.'
+    required: false
+    default: 'Release'
+  sdk:
+    description: 'Xcode SDK.'
+    required: false
+    default: 'macosx'
+  archive_path:
+    description: 'Path to generated .xcarchive.'
+    required: false
+    default: 'artifacts/macos/Aiden.xcarchive'
+  export_path:
+    description: 'Directory for xcodebuild -exportArchive output.'
+    required: false
+    default: 'artifacts/macos/export'
+  export_options_plist:
+    description: 'Optional exportOptions.plist path. If empty, a default developer-id plist is generated.'
+    required: false
+    default: ''
+  app_output_path:
+    description: 'Target output path for exported .app bundle.'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build app bundle
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-build-bundle.ps1" `
+          -Version '${{ inputs.version }}' `
+          -WorkspacePath '${{ inputs.workspace_path }}' `
+          -ProjectPath '${{ inputs.project_path }}' `
+          -Scheme '${{ inputs.scheme }}' `
+          -Configuration '${{ inputs.configuration }}' `
+          -Sdk '${{ inputs.sdk }}' `
+          -ArchivePath '${{ inputs.archive_path }}' `
+          -ExportPath '${{ inputs.export_path }}' `
+          -ExportOptionsPlist '${{ inputs.export_options_plist }}' `
+          -AppOutputPath '${{ inputs.app_output_path }}'

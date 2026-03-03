@@ -1,0 +1,43 @@
+name: 'macOS Build PKG Installer'
+description: 'Builds a macOS pkg installer with postinstall scripts for runtime dependency download.'
+author: 'zhangyu528'
+
+inputs:
+  app_bundle_path:
+    description: 'Path to .app bundle to package.'
+    required: true
+  scripts_dir:
+    description: 'Path to pkg scripts directory (must include postinstall).'
+    required: true
+  pkg_path:
+    description: 'Output pkg path.'
+    required: true
+  identifier:
+    description: 'Package identifier.'
+    required: true
+  version:
+    description: 'Package version.'
+    required: true
+  install_location:
+    description: 'Install location for .app bundle.'
+    required: false
+    default: '/Applications'
+
+outputs:
+  pkg_path:
+    description: 'Output pkg path.'
+    value: ${{ inputs.pkg_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build pkg
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-build-pkg-installer.ps1" `
+          -AppBundlePath '${{ inputs.app_bundle_path }}' `
+          -ScriptsDir '${{ inputs.scripts_dir }}' `
+          -PkgPath '${{ inputs.pkg_path }}' `
+          -Identifier '${{ inputs.identifier }}' `
+          -Version '${{ inputs.version }}' `
+          -InstallLocation '${{ inputs.install_location }}'

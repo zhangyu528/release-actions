@@ -1,0 +1,49 @@
+name: 'Publish GitHub Prerelease'
+description: 'Creates a GitHub prerelease, uploads assets, and prints a summary.'
+author: 'zhangyu528'
+
+inputs:
+  tag:
+    description: 'The tag to create the release against (e.g. v0.1.0-alpha.5).'
+    required: true
+  target_branch:
+    description: 'Target branch for the release.'
+    required: false
+    default: 'main'
+  github_token:
+    description: 'GitHub token with release upload permissions.'
+    required: true
+  assets_manifest:
+    description: 'JSON array: [{ "path": "...", "name": "...", "content_type": "..." }].'
+    required: true
+  print_summary:
+    description: 'Whether to print prerelease summary.'
+    required: false
+    default: 'true'
+
+outputs:
+  release_url:
+    description: 'URL of the created GitHub release.'
+    value: ${{ steps.publish.outputs.release_url }}
+  release_upload_url:
+    description: 'Upload URL for the created release.'
+    value: ${{ steps.publish.outputs.release_upload_url }}
+  uploaded_count:
+    description: 'Number of uploaded assets.'
+    value: ${{ steps.publish.outputs.uploaded_count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Publish prerelease
+      id: publish
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/publish-github-prerelease.ps1" `
+          -Tag '${{ inputs.tag }}' `
+          -TargetBranch '${{ inputs.target_branch }}' `
+          -GitHubToken '${{ inputs.github_token }}' `
+          -AssetsManifest @'
+        ${{ inputs.assets_manifest }}
+        '@ `
+          -PrintSummary '${{ inputs.print_summary }}'

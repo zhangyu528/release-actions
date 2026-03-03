@@ -1,0 +1,46 @@
+name: 'macOS Stage Install Assets'
+description: 'Stages app bundle and installer scripts for macOS pkg postinstall runtime downloads.'
+author: 'zhangyu528'
+
+inputs:
+  app_bundle_path:
+    description: 'Path to source .app bundle.'
+    required: true
+  stage_dir:
+    description: 'Staging directory for installer assets.'
+    required: false
+    default: 'artifacts/macos/stage'
+  app_name:
+    description: 'Application display name used for runtime install root.'
+    required: false
+    default: 'Aiden'
+  runtime_helper_sources:
+    description: 'Newline-delimited helper scripts copied into stage scripts directory.'
+    required: true
+
+outputs:
+  staged_app_bundle_path:
+    description: 'Path to staged .app bundle.'
+    value: ${{ steps.stage.outputs.staged_app_bundle_path }}
+  scripts_dir:
+    description: 'Path to staged installer scripts directory.'
+    value: ${{ steps.stage.outputs.scripts_dir }}
+  stage_dir:
+    description: 'Resolved stage directory.'
+    value: ${{ inputs.stage_dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Stage app and install scripts
+      id: stage
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-stage-install-assets.ps1" `
+          -AppBundlePath '${{ inputs.app_bundle_path }}' `
+          -StageDir '${{ inputs.stage_dir }}' `
+          -AppName '${{ inputs.app_name }}' `
+          -ActionPath '${{ github.action_path }}' `
+          -RuntimeHelperSources @'
+        ${{ inputs.runtime_helper_sources }}
+        '@

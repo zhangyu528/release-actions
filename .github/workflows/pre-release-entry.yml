@@ -1,0 +1,523 @@
+name: Reusable Pre-release Entry
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: 'Target platform: windows or macos.'
+        required: true
+        type: string
+      base_version:
+        description: 'Base version in vMAJOR.MINOR.PATCH format (for example v0.1.0).'
+        required: true
+        type: string
+      channel:
+        description: 'Prerelease channel: alpha, beta, rc.'
+        required: true
+        type: string
+      dotnet_version:
+        description: 'Dotnet version used for windows flow.'
+        required: false
+        default: '8.0.x'
+        type: string
+      windows_rid:
+        description: 'Runtime identifier for windows dotnet publish.'
+        required: false
+        default: 'win-x64'
+        type: string
+      windows_solution_path:
+        description: 'Path to solution file used for built-in windows publish targets.'
+        required: false
+        default: 'Aiden.sln'
+        type: string
+      windows_icon_source:
+        description: 'Windows installer icon source path.'
+        required: false
+        default: ''
+        type: string
+      windows_helper_script_sources:
+        description: 'Newline-delimited windows helper scripts copied to package/scripts.'
+        required: false
+        default: ''
+        type: string
+      windows_postinstall_launch_exe:
+        description: 'Executable filename launched after install completes.'
+        required: false
+        default: 'Aiden.TrayMonitor.exe'
+        type: string
+      windows_autorun_exe:
+        description: 'Executable filename written to HKCU Run registry.'
+        required: false
+        default: 'Aiden.RuntimeAgent.exe'
+        type: string
+      macos_workspace_path:
+        description: 'Path to .xcworkspace (provide exactly one of macos_workspace_path or macos_project_path).'
+        required: false
+        default: ''
+        type: string
+      macos_project_path:
+        description: 'Path to .xcodeproj (provide exactly one of macos_workspace_path or macos_project_path).'
+        required: false
+        default: ''
+        type: string
+      macos_scheme:
+        description: 'Xcode scheme to build.'
+        required: false
+        default: ''
+        type: string
+      macos_runtime_helper_sources:
+        description: 'Newline-delimited helper scripts copied into macOS installer scripts dir.'
+        required: false
+        default: ''
+        type: string
+      macos_pkg_identifier:
+        description: 'macOS pkg identifier.'
+        required: false
+        default: ''
+        type: string
+      release_assets_manifest_json:
+        description: 'Optional explicit release assets manifest JSON. If empty, workflow generates default manifest by platform.'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      github_token:
+        required: true
+      signpath_api_token:
+        required: false
+      apple_id:
+        required: false
+      apple_app_password:
+        required: false
+    outputs:
+      computed_tag:
+        description: 'Computed prerelease tag.'
+        value: ${{ jobs.collect_outputs.outputs.computed_tag }}
+      version:
+        description: 'Computed version without leading v.'
+        value: ${{ jobs.collect_outputs.outputs.version }}
+      release_url:
+        description: 'GitHub prerelease URL.'
+        value: ${{ jobs.collect_outputs.outputs.release_url }}
+      uploaded_count:
+        description: 'Uploaded release assets count.'
+        value: ${{ jobs.collect_outputs.outputs.uploaded_count }}
+
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+
+jobs:
+  validate_inputs:
+    name: Validate Entry Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate platform and channel
+        shell: pwsh
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          if ($env:PLATFORM -notin @('windows', 'macos')) {
+            throw "platform must be one of: windows, macos. Actual: $($env:PLATFORM)"
+          }
+          if ($env:CHANNEL -notin @('alpha', 'beta', 'rc')) {
+            throw "channel must be one of: alpha, beta, rc. Actual: $($env:CHANNEL)"
+          }
+
+  release_windows:
+    name: Windows Pre-release
+    needs: validate_inputs
+    if: ${{ inputs.platform == 'windows' }}
+    runs-on: windows-latest
+    outputs:
+      computed_tag: ${{ steps.next_tag.outputs.computed_tag }}
+      version: ${{ steps.next_tag.outputs.version }}
+      release_url: ${{ steps.publish_release.outputs.release_url }}
+      uploaded_count: ${{ steps.publish_release.outputs.uploaded_count }}
+    steps:
+      - name: Validate windows inputs
+        shell: pwsh
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          WINDOWS_SOLUTION_PATH: ${{ inputs.windows_solution_path }}
+          WINDOWS_ICON_SOURCE: ${{ inputs.windows_icon_source }}
+          WINDOWS_HELPER_SCRIPT_SOURCES: ${{ inputs.windows_helper_script_sources }}
+          WINDOWS_POSTINSTALL_LAUNCH_EXE: ${{ inputs.windows_postinstall_launch_exe }}
+          WINDOWS_AUTORUN_EXE: ${{ inputs.windows_autorun_exe }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_UNSIGNED_ARTIFACT_CFG: ${{ vars.SIGNPATH_UNSIGNED_ARTIFACT_CFG }}
+          SIGNPATH_INSTALLER_ARTIFACT_CFG: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CFG }}
+          SIGNPATH_API_TOKEN: ${{ secrets.signpath_api_token }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SOLUTION_PATH)) { throw 'windows_solution_path is required when platform=windows.' }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_ICON_SOURCE)) { throw 'windows_icon_source is required when platform=windows.' }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_HELPER_SCRIPT_SOURCES)) { throw 'windows_helper_script_sources is required when platform=windows.' }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_POSTINSTALL_LAUNCH_EXE)) { throw 'windows_postinstall_launch_exe is required when platform=windows.' }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_AUTORUN_EXE)) { throw 'windows_autorun_exe is required when platform=windows.' }
+
+          if ($env:CHANNEL -eq 'rc') {
+            $missing = @()
+            foreach ($name in 'SIGNPATH_ORGANIZATION_ID','SIGNPATH_PROJECT_SLUG','SIGNPATH_SIGNING_POLICY_SLUG','SIGNPATH_UNSIGNED_ARTIFACT_CFG','SIGNPATH_INSTALLER_ARTIFACT_CFG','SIGNPATH_API_TOKEN') {
+              if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+                $missing += $name
+              }
+            }
+            if ($missing.Count -gt 0) {
+              throw "Missing required Windows rc signing configuration: $($missing -join ', ')"
+            }
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - id: next_tag
+        uses: zhangyu528/release-actions/actions/common/compute-next-prerelease-tag@main
+        with:
+          base_version: ${{ inputs.base_version }}
+          channel: ${{ inputs.channel }}
+
+      - name: Resolve windows output paths
+        id: windows_paths
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.next_tag.outputs.version }}
+          INSTALLER_TEMPLATE: artifacts/installer/Aiden-Setup-{version}-win-x64.exe
+          CHECKSUMS_FILE: artifacts/installer/SHA256SUMS.txt
+        run: |
+          $installerPath = $env:INSTALLER_TEMPLATE.Replace('{version}', $env:VERSION)
+          "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
+          "checksums_file=$env:CHECKSUMS_FILE" >> $env:GITHUB_OUTPUT
+
+      - uses: zhangyu528/release-actions/actions/windows/build-dotnet-stage@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          rid: ${{ inputs.windows_rid }}
+          solution_path: ${{ inputs.windows_solution_path }}
+
+      - uses: zhangyu528/release-actions/actions/windows/stage-package@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          icon_source: ${{ inputs.windows_icon_source }}
+          helper_script_sources: ${{ inputs.windows_helper_script_sources }}
+
+      - if: ${{ inputs.channel == 'rc' }}
+        uses: zhangyu528/release-actions/actions/common/check-signpath-readiness@main
+        with:
+          organization_id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project_slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing_policy_slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          unsigned_artifact_cfg: ${{ vars.SIGNPATH_UNSIGNED_ARTIFACT_CFG }}
+          installer_artifact_cfg: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CFG }}
+
+      - if: ${{ inputs.channel == 'rc' }}
+        uses: zhangyu528/release-actions/actions/windows/sign-and-verify-app-binaries@main
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.signpath_api_token }}
+        with:
+          organization_id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project_slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing_policy_slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact_configuration_slug: ${{ vars.SIGNPATH_UNSIGNED_ARTIFACT_CFG }}
+          artifact_name: unsigned-app-binaries-${{ steps.next_tag.outputs.computed_tag }}
+          artifact_paths: |
+            artifacts/stage/tray/Aiden.TrayMonitor.exe
+            artifacts/stage/agent/Aiden.RuntimeAgent.exe
+
+      - uses: zhangyu528/release-actions/actions/windows/build-inno-installer@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          postinstall_launch_exe: ${{ inputs.windows_postinstall_launch_exe }}
+          autorun_exe: ${{ inputs.windows_autorun_exe }}
+
+      - if: ${{ inputs.channel == 'rc' }}
+        uses: zhangyu528/release-actions/actions/windows/sign-and-verify-installer@main
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.signpath_api_token }}
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          organization_id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project_slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing_policy_slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact_name: unsigned-installer-${{ steps.next_tag.outputs.computed_tag }}
+          artifact_path: ${{ steps.windows_paths.outputs.installer_path }}
+          artifact_configuration_slug: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CFG }}
+          installer_target_template: artifacts/installer/Aiden-Setup-{version}-win-x64.exe
+
+      - uses: zhangyu528/release-actions/actions/common/generate-sha256sums@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          files_json: |
+            [
+              "artifacts/installer/Aiden-Setup-{version}-win-x64.exe"
+            ]
+          output_file: ${{ steps.windows_paths.outputs.checksums_file }}
+
+      - name: Build windows assets manifest
+        id: windows_manifest
+        shell: pwsh
+        env:
+          RELEASE_ASSETS_MANIFEST_JSON: ${{ inputs.release_assets_manifest_json }}
+          INSTALLER_PATH: ${{ steps.windows_paths.outputs.installer_path }}
+          CHECKSUMS_FILE: ${{ steps.windows_paths.outputs.checksums_file }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_ASSETS_MANIFEST_JSON)) {
+            $manifest = $env:RELEASE_ASSETS_MANIFEST_JSON
+          }
+          else {
+            $manifest = @(
+              @{ path = $env:INSTALLER_PATH; name = [System.IO.Path]::GetFileName($env:INSTALLER_PATH); content_type = 'application/octet-stream' },
+              @{ path = $env:CHECKSUMS_FILE; name = [System.IO.Path]::GetFileName($env:CHECKSUMS_FILE); content_type = 'text/plain' }
+            ) | ConvertTo-Json -Depth 4 -Compress
+          }
+          $marker = [Guid]::NewGuid().ToString('N')
+          "manifest<<$marker" >> $env:GITHUB_OUTPUT
+          $manifest >> $env:GITHUB_OUTPUT
+          $marker >> $env:GITHUB_OUTPUT
+
+      - id: publish_release
+        uses: zhangyu528/release-actions/actions/common/publish-github-prerelease@main
+        with:
+          tag: ${{ steps.next_tag.outputs.computed_tag }}
+          target_branch: ${{ github.ref_name }}
+          github_token: ${{ secrets.github_token }}
+          assets_manifest: ${{ steps.windows_manifest.outputs.manifest }}
+
+      - name: Cleanup failed prerelease and tag (windows)
+        if: ${{ failure() && steps.next_tag.outputs.computed_tag != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          TAG: ${{ steps.next_tag.outputs.computed_tag }}
+        run: |
+          Write-Host "Cleanup start for tag: $env:TAG"
+          gh release view $env:TAG | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release exists, deleting release and tag: $env:TAG"
+            gh release delete $env:TAG --yes --cleanup-tag
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to delete release/tag for $env:TAG"
+            }
+            Write-Host "Cleanup completed for tag: $env:TAG"
+          }
+          else {
+            Write-Host "No release found for tag $env:TAG, cleanup skipped."
+          }
+
+  release_macos:
+    name: macOS Pre-release
+    needs: validate_inputs
+    if: ${{ inputs.platform == 'macos' }}
+    runs-on: macos-latest
+    outputs:
+      computed_tag: ${{ steps.next_tag.outputs.computed_tag }}
+      version: ${{ steps.next_tag.outputs.version }}
+      release_url: ${{ steps.publish_release.outputs.release_url }}
+      uploaded_count: ${{ steps.publish_release.outputs.uploaded_count }}
+    steps:
+      - name: Validate macOS inputs
+        shell: pwsh
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          MACOS_WORKSPACE_PATH: ${{ inputs.macos_workspace_path }}
+          MACOS_PROJECT_PATH: ${{ inputs.macos_project_path }}
+          MACOS_SCHEME: ${{ inputs.macos_scheme }}
+          MACOS_RUNTIME_HELPER_SOURCES: ${{ inputs.macos_runtime_helper_sources }}
+          MACOS_PKG_IDENTIFIER: ${{ inputs.macos_pkg_identifier }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_INSTALLER_SIGNING_IDENTITY: ${{ vars.APPLE_INSTALLER_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.apple_id }}
+          APPLE_APP_PASSWORD: ${{ secrets.apple_app_password }}
+        run: |
+          $hasWorkspace = -not [string]::IsNullOrWhiteSpace($env:MACOS_WORKSPACE_PATH)
+          $hasProject = -not [string]::IsNullOrWhiteSpace($env:MACOS_PROJECT_PATH)
+          if ($hasWorkspace -eq $hasProject) { throw 'Provide exactly one of macos_workspace_path or macos_project_path when platform=macos.' }
+          if ([string]::IsNullOrWhiteSpace($env:MACOS_SCHEME)) { throw 'macos_scheme is required when platform=macos.' }
+          if ([string]::IsNullOrWhiteSpace($env:MACOS_RUNTIME_HELPER_SOURCES)) { throw 'macos_runtime_helper_sources is required when platform=macos.' }
+          if ([string]::IsNullOrWhiteSpace($env:MACOS_PKG_IDENTIFIER)) { throw 'macos_pkg_identifier is required when platform=macos.' }
+
+          if ($env:CHANNEL -eq 'rc') {
+            $missing = @()
+            foreach ($name in 'APPLE_SIGNING_IDENTITY','APPLE_INSTALLER_SIGNING_IDENTITY','APPLE_TEAM_ID','APPLE_ID','APPLE_APP_PASSWORD') {
+              if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+                $missing += $name
+              }
+            }
+            if ($missing.Count -gt 0) {
+              throw "Missing required macOS rc signing configuration: $($missing -join ', ')"
+            }
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: next_tag
+        uses: zhangyu528/release-actions/actions/common/compute-next-prerelease-tag@main
+        with:
+          base_version: ${{ inputs.base_version }}
+          channel: ${{ inputs.channel }}
+
+      - name: Resolve macOS output paths
+        id: macos_paths
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.next_tag.outputs.version }}
+          PKG_TEMPLATE: artifacts/macos/Aiden-{version}-macos-arm64.pkg
+          CHECKSUMS_FILE: artifacts/macos/SHA256SUMS-macos.txt
+        run: |
+          $pkgPath = $env:PKG_TEMPLATE.Replace('{version}', $env:VERSION)
+          "pkg_path=$pkgPath" >> $env:GITHUB_OUTPUT
+          "checksums_file=$env:CHECKSUMS_FILE" >> $env:GITHUB_OUTPUT
+
+      - uses: zhangyu528/release-actions/actions/macos/build-bundle@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          workspace_path: ${{ inputs.macos_workspace_path }}
+          project_path: ${{ inputs.macos_project_path }}
+          scheme: ${{ inputs.macos_scheme }}
+          configuration: Release
+          sdk: macosx
+          archive_path: artifacts/macos/Aiden.xcarchive
+          export_path: artifacts/macos/export
+          export_options_plist: ''
+          app_output_path: artifacts/macos/Aiden.app
+
+      - if: ${{ inputs.channel == 'rc' }}
+        uses: zhangyu528/release-actions/actions/macos/sign-and-verify-app-bundle@main
+        with:
+          app_path: artifacts/macos/Aiden.app
+          signing_identity: ${{ vars.APPLE_SIGNING_IDENTITY }}
+
+      - uses: zhangyu528/release-actions/actions/macos/stage-install-assets@main
+        with:
+          app_bundle_path: artifacts/macos/Aiden.app
+          stage_dir: artifacts/macos/stage
+          app_name: Aiden
+          runtime_helper_sources: ${{ inputs.macos_runtime_helper_sources }}
+
+      - uses: zhangyu528/release-actions/actions/macos/build-pkg-installer@main
+        with:
+          app_bundle_path: artifacts/macos/stage/Aiden.app
+          scripts_dir: artifacts/macos/stage/scripts
+          pkg_path: ${{ steps.macos_paths.outputs.pkg_path }}
+          identifier: ${{ inputs.macos_pkg_identifier }}
+          version: ${{ steps.next_tag.outputs.version }}
+
+      - if: ${{ inputs.channel == 'rc' }}
+        uses: zhangyu528/release-actions/actions/macos/sign-notarize-staple-verify-installer@main
+        with:
+          pkg_path: ${{ steps.macos_paths.outputs.pkg_path }}
+          installer_signing_identity: ${{ vars.APPLE_INSTALLER_SIGNING_IDENTITY }}
+          apple_team_id: ${{ vars.APPLE_TEAM_ID }}
+          apple_id: ${{ secrets.apple_id }}
+          apple_app_password: ${{ secrets.apple_app_password }}
+
+      - uses: zhangyu528/release-actions/actions/common/generate-sha256sums@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          files_json: |
+            [
+              "artifacts/macos/Aiden-{version}-macos-arm64.pkg"
+            ]
+          output_file: ${{ steps.macos_paths.outputs.checksums_file }}
+
+      - name: Build macOS assets manifest
+        id: macos_manifest
+        shell: pwsh
+        env:
+          RELEASE_ASSETS_MANIFEST_JSON: ${{ inputs.release_assets_manifest_json }}
+          PKG_PATH: ${{ steps.macos_paths.outputs.pkg_path }}
+          CHECKSUMS_FILE: ${{ steps.macos_paths.outputs.checksums_file }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_ASSETS_MANIFEST_JSON)) {
+            $manifest = $env:RELEASE_ASSETS_MANIFEST_JSON
+          }
+          else {
+            $manifest = @(
+              @{ path = $env:PKG_PATH; name = [System.IO.Path]::GetFileName($env:PKG_PATH); content_type = 'application/octet-stream' },
+              @{ path = $env:CHECKSUMS_FILE; name = [System.IO.Path]::GetFileName($env:CHECKSUMS_FILE); content_type = 'text/plain' }
+            ) | ConvertTo-Json -Depth 4 -Compress
+          }
+          $marker = [Guid]::NewGuid().ToString('N')
+          "manifest<<$marker" >> $env:GITHUB_OUTPUT
+          $manifest >> $env:GITHUB_OUTPUT
+          $marker >> $env:GITHUB_OUTPUT
+
+      - id: publish_release
+        uses: zhangyu528/release-actions/actions/common/publish-github-prerelease@main
+        with:
+          tag: ${{ steps.next_tag.outputs.computed_tag }}
+          target_branch: ${{ github.ref_name }}
+          github_token: ${{ secrets.github_token }}
+          assets_manifest: ${{ steps.macos_manifest.outputs.manifest }}
+
+      - name: Cleanup failed prerelease and tag (macos)
+        if: ${{ failure() && steps.next_tag.outputs.computed_tag != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          TAG: ${{ steps.next_tag.outputs.computed_tag }}
+        run: |
+          Write-Host "Cleanup start for tag: $env:TAG"
+          gh release view $env:TAG | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release exists, deleting release and tag: $env:TAG"
+            gh release delete $env:TAG --yes --cleanup-tag
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to delete release/tag for $env:TAG"
+            }
+            Write-Host "Cleanup completed for tag: $env:TAG"
+          }
+          else {
+            Write-Host "No release found for tag $env:TAG, cleanup skipped."
+          }
+
+  collect_outputs:
+    name: Collect Outputs
+    runs-on: ubuntu-latest
+    needs:
+      - release_windows
+      - release_macos
+    if: ${{ always() }}
+    outputs:
+      computed_tag: ${{ steps.collect.outputs.computed_tag }}
+      version: ${{ steps.collect.outputs.version }}
+      release_url: ${{ steps.collect.outputs.release_url }}
+      uploaded_count: ${{ steps.collect.outputs.uploaded_count }}
+    steps:
+      - name: Export selected platform outputs
+        id: collect
+        shell: pwsh
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          WINDOWS_COMPUTED_TAG: ${{ needs.release_windows.outputs.computed_tag }}
+          WINDOWS_VERSION: ${{ needs.release_windows.outputs.version }}
+          WINDOWS_RELEASE_URL: ${{ needs.release_windows.outputs.release_url }}
+          WINDOWS_UPLOADED_COUNT: ${{ needs.release_windows.outputs.uploaded_count }}
+          MACOS_COMPUTED_TAG: ${{ needs.release_macos.outputs.computed_tag }}
+          MACOS_VERSION: ${{ needs.release_macos.outputs.version }}
+          MACOS_RELEASE_URL: ${{ needs.release_macos.outputs.release_url }}
+          MACOS_UPLOADED_COUNT: ${{ needs.release_macos.outputs.uploaded_count }}
+        run: |
+          if ($env:PLATFORM -eq 'windows') {
+            "computed_tag=$env:WINDOWS_COMPUTED_TAG" >> $env:GITHUB_OUTPUT
+            "version=$env:WINDOWS_VERSION" >> $env:GITHUB_OUTPUT
+            "release_url=$env:WINDOWS_RELEASE_URL" >> $env:GITHUB_OUTPUT
+            "uploaded_count=$env:WINDOWS_UPLOADED_COUNT" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "computed_tag=$env:MACOS_COMPUTED_TAG" >> $env:GITHUB_OUTPUT
+            "version=$env:MACOS_VERSION" >> $env:GITHUB_OUTPUT
+            "release_url=$env:MACOS_RELEASE_URL" >> $env:GITHUB_OUTPUT
+            "uploaded_count=$env:MACOS_UPLOADED_COUNT" >> $env:GITHUB_OUTPUT
+          }

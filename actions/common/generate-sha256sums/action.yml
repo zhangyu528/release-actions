@@ -1,0 +1,32 @@
+name: 'Generate SHA256SUMS'
+description: 'Generates a SHA256SUMS file for a list of release artifacts.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  files_json:
+    description: 'JSON array of file paths to hash. Supports {version} placeholder.'
+    required: true
+  output_file:
+    description: 'Output SHA256SUMS file path.'
+    required: true
+
+outputs:
+  output_file:
+    description: 'Path to generated SHA256SUMS file.'
+    value: ${{ inputs.output_file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate checksums
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/generate-sha256sums.ps1" `
+          -Version '${{ inputs.version }}' `
+          -FilesJson @'
+        ${{ inputs.files_json }}
+        '@ `
+          -OutputFile '${{ inputs.output_file }}'

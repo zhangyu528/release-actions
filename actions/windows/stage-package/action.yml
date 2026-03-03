@@ -1,0 +1,55 @@
+name: 'Windows Stage Package'
+description: 'Stages installer payload from published binaries and helper scripts.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  tray_publish_dir:
+    description: 'Tray publish output directory.'
+    required: false
+    default: 'artifacts/stage/tray'
+  agent_publish_dir:
+    description: 'Agent publish output directory.'
+    required: false
+    default: 'artifacts/stage/agent'
+  package_dir:
+    description: 'Output package directory consumed by installer builder.'
+    required: false
+    default: 'artifacts/stage/package'
+  installer_dir:
+    description: 'Installer output root directory.'
+    required: false
+    default: 'artifacts/installer'
+  icon_source:
+    description: 'Optional icon path copied into package root.'
+    required: false
+    default: ''
+  helper_script_sources:
+    description: 'Newline-delimited helper scripts copied under package/scripts.'
+    required: false
+    default: ''
+
+outputs:
+  package_dir:
+    description: 'Staged package directory.'
+    value: ${{ inputs.package_dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Stage package payload
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/windows-stage-package.ps1" `
+          -Version '${{ inputs.version }}' `
+          -TrayPublishDir '${{ inputs.tray_publish_dir }}' `
+          -AgentPublishDir '${{ inputs.agent_publish_dir }}' `
+          -PackageDir '${{ inputs.package_dir }}' `
+          -InstallerDir '${{ inputs.installer_dir }}' `
+          -IconSource '${{ inputs.icon_source }}' `
+          -ActionPath '${{ github.action_path }}' `
+          -HelperScriptSources @'
+        ${{ inputs.helper_script_sources }}
+        '@

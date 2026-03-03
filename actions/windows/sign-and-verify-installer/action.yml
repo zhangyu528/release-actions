@@ -1,0 +1,68 @@
+name: 'Windows Sign and Verify Installer'
+description: 'Signs installer via SignPath, replaces output installer, and verifies signature.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  organization_id:
+    description: 'SignPath Organization ID.'
+    required: true
+  project_slug:
+    description: 'SignPath Project slug.'
+    required: true
+  signing_policy_slug:
+    description: 'SignPath Signing Policy slug.'
+    required: true
+  artifact_configuration_slug:
+    description: 'SignPath artifact configuration slug for installer.'
+    required: true
+  artifact_name:
+    description: 'Artifact upload name for unsigned installer.'
+    required: true
+  artifact_path:
+    description: 'Unsigned installer path.'
+    required: true
+  signed_installer_dir:
+    description: 'Directory for signed installer outputs.'
+    required: false
+    default: 'artifacts/signed/installer'
+  installer_target_template:
+    description: 'Installer target path with {version} placeholder.'
+    required: false
+    default: 'artifacts/installer/Aiden-Setup-{version}-win-x64.exe'
+
+outputs:
+  artifact_id:
+    description: 'Uploaded unsigned installer artifact id.'
+    value: ${{ steps.upload.outputs.artifact-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload unsigned installer
+      id: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.artifact_path }}
+
+    - name: Sign installer
+      uses: signpath/github-action-submit-signing-request@v2
+      with:
+        organization-id: ${{ inputs.organization_id }}
+        project-slug: ${{ inputs.project_slug }}
+        signing-policy-slug: ${{ inputs.signing_policy_slug }}
+        artifact-configuration-slug: ${{ inputs.artifact_configuration_slug }}
+        github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+        wait-for-completion: true
+        output-artifact-directory: ${{ inputs.signed_installer_dir }}
+
+    - name: Replace installer and verify
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/sign-and-verify-installer.ps1" `
+          -Version '${{ inputs.version }}' `
+          -SignedInstallerDir '${{ inputs.signed_installer_dir }}' `
+          -InstallerTargetTemplate '${{ inputs.installer_target_template }}'

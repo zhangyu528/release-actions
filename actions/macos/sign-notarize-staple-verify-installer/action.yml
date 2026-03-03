@@ -1,0 +1,38 @@
+name: 'macOS Sign Notarize Staple Verify Installer'
+description: 'Signs, notarizes, staples, and verifies a macOS pkg installer.'
+author: 'zhangyu528'
+
+inputs:
+  pkg_path:
+    description: 'Path to unsigned pkg.'
+    required: true
+  installer_signing_identity:
+    description: 'Developer ID Installer signing identity.'
+    required: true
+  apple_team_id:
+    description: 'Apple Developer team id.'
+    required: true
+  apple_id:
+    description: 'Apple ID used for notarytool.'
+    required: true
+  apple_app_password:
+    description: 'Apple app-specific password for notarytool.'
+    required: true
+
+outputs:
+  signed_pkg_path:
+    description: 'Signed/notarized pkg path.'
+    value: ${{ inputs.pkg_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Sign notarize and verify pkg
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-sign-notarize-staple-verify-installer.ps1" `
+          -PkgPath '${{ inputs.pkg_path }}' `
+          -InstallerSigningIdentity '${{ inputs.installer_signing_identity }}' `
+          -AppleTeamId '${{ inputs.apple_team_id }}' `
+          -AppleId '${{ inputs.apple_id }}' `
+          -AppleAppPassword '${{ inputs.apple_app_password }}'

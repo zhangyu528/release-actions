@@ -1,10 +1,6 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-if ($env:SIGNPATH_READY -ne "true") {
-    throw "SignPath onboarding is not marked ready. Set repository variable SIGNPATH_READY=true after SignPath approval."
-}
-
 $required = @(
     "SIGNPATH_ORGANIZATION_ID",
     "SIGNPATH_PROJECT_SLUG",

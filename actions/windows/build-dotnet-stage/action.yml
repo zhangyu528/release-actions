@@ -1,0 +1,56 @@
+name: 'Build Dotnet Stage'
+description: 'Builds built-in windows publish targets from solution into standardized staging directories.'
+author: 'zhangyu528'
+
+inputs:
+  version:
+    description: 'Release version without leading v (for example 0.1.0-alpha.1).'
+    required: true
+  rid:
+    description: 'Dotnet runtime identifier (for example win-x64 or osx-arm64).'
+    required: true
+  solution_path:
+    description: 'Path to solution file used to resolve built-in publish targets.'
+    required: true
+  configuration:
+    description: 'Dotnet build configuration.'
+    required: false
+    default: 'Release'
+  self_contained:
+    description: 'Whether to build self-contained executables.'
+    required: false
+    default: 'true'
+  publish_single_file:
+    description: 'Whether to publish as single file.'
+    required: false
+    default: 'true'
+  include_native_libraries_for_self_extract:
+    description: 'Whether to include native libraries for single-file self-extract mode.'
+    required: false
+    default: 'true'
+  prepare_package_script:
+    description: 'Optional repository-local PowerShell script to run after publish with -Version.'
+    required: false
+    default: ''
+
+outputs:
+  staging_dir:
+    description: 'Root staging directory that contains published app outputs.'
+    value: ${{ steps.build.outputs.staging_dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build and stage projects
+      id: build
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/build-dotnet-stage.ps1" `
+          -Version '${{ inputs.version }}' `
+          -Rid '${{ inputs.rid }}' `
+          -SolutionPath '${{ inputs.solution_path }}' `
+          -Configuration '${{ inputs.configuration }}' `
+          -SelfContained '${{ inputs.self_contained }}' `
+          -PublishSingleFile '${{ inputs.publish_single_file }}' `
+          -IncludeNativeLibrariesForSelfExtract '${{ inputs.include_native_libraries_for_self_extract }}' `
+          -PreparePackageScript '${{ inputs.prepare_package_script }}'

@@ -1,68 +1,105 @@
 # release-actions
 
-Shared GitHub Actions for cross-platform Aiden pre-release pipelines.
+Shared GitHub Actions and reusable workflows for Aiden pre-release pipelines.
 
-## Available Actions
+## Recommended Entry
 
-### `compute-next-prerelease-tag`
+Use reusable workflow: `.github/workflows/pre-release-entry.yml`.
 
-Computes the next sequential prerelease tag, respecting existing git tags.
+Caller repositories only need one `uses` entry instead of calling each action step manually.
 
-```yaml
-- uses: zhangyu528/release-actions/compute-next-prerelease-tag@main
-  id: tag
-  with:
-    base_version: 'v0.1.0'
-    channel: 'alpha'       # optional, default: alpha
-# Outputs:
-#   steps.tag.outputs.computed_tag  → v0.1.0-alpha.5
-#   steps.tag.outputs.version       → 0.1.0-alpha.5
-```
-
----
-
-### `create-github-prerelease`
-
-Creates a GitHub pre-release with auto-generated notes.
+### Windows caller example
 
 ```yaml
-- uses: zhangyu528/release-actions/create-github-prerelease@main
-  id: release
-  with:
-    tag: 'v0.1.0-alpha.5'
-    target_branch: 'main'  # optional, default: main
-# Outputs:
-#   steps.release.outputs.release_url
-#   steps.release.outputs.release_upload_url
+jobs:
+  prerelease:
+    uses: zhangyu528/release-actions/.github/workflows/pre-release-entry.yml@main
+    with:
+      platform: windows
+      base_version: ${{ inputs.base_version }}
+      channel: ${{ inputs.channel }}
+      windows_solution_path: Aiden.sln
+      windows_icon_source: Aiden.TrayMonitor/Assets/aiden.ico
+      windows_helper_script_sources: |
+        Aiden.RuntimeAgent/scripts/download-vm.ps1
+        Aiden.RuntimeAgent/scripts/download-collector.ps1
+      windows_postinstall_launch_exe: Aiden.TrayMonitor.exe
+      windows_autorun_exe: Aiden.RuntimeAgent.exe
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+      signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
 ```
 
----
+Windows flow publishes built-in targets from solution: `Aiden.TrayMonitor` -> `artifacts/stage/tray`, `Aiden.RuntimeAgent` -> `artifacts/stage/agent`.
+Windows install behavior is configurable via entry inputs: `windows_postinstall_launch_exe` and `windows_autorun_exe`.
+Windows app build also writes release-computed version into binaries:
+- `Version` and `InformationalVersion`: full semantic version (for example `0.1.0-rc.3`)
+- `AssemblyVersion` and `FileVersion`: numeric 4-part version (for example `0.1.0.3`)
 
-### `check-signpath-readiness`
-
-Validates that all SignPath configuration variables are present before signing.
+### macOS caller example
 
 ```yaml
-- uses: zhangyu528/release-actions/check-signpath-readiness@main
-  with:
-    signpath_ready: ${{ vars.SIGNPATH_READY }}
-    organization_id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-    project_slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-    signing_policy_slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-    unsigned_artifact_cfg: ${{ vars.SIGNPATH_UNSIGNED_ARTIFACT_CFG }}
-    installer_artifact_cfg: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CFG }}
+jobs:
+  prerelease:
+    uses: zhangyu528/release-actions/.github/workflows/pre-release-entry.yml@main
+    with:
+      platform: macos
+      base_version: ${{ inputs.base_version }}
+      channel: ${{ inputs.channel }}
+      macos_workspace_path: Aiden.xcworkspace
+      macos_project_path: ''
+      macos_scheme: Aiden
+      macos_runtime_helper_sources: |
+        scripts/download-vm.sh
+        scripts/download-collector.sh
+      macos_pkg_identifier: com.aiden.app
+    secrets:
+      github_token: ${{ secrets.GITHUB_TOKEN }}
+      apple_id: ${{ secrets.APPLE_ID }}
+      apple_app_password: ${{ secrets.APPLE_APP_PASSWORD }}
 ```
 
----
+macOS app build also writes release-computed version into bundle build settings:
+- `MARKETING_VERSION`: numeric `major.minor.patch` (for example `0.1.0`)
+- `CURRENT_PROJECT_VERSION`: prerelease sequence or `0` (for example `3` for `0.1.0-rc.3`)
+macOS installer/checksum output paths and staging layout are now internal defaults in release-actions.
 
-## Requirements
+## RC Signing Requirements
 
-- PowerShell Core (`pwsh`) available on the runner
-- `gh` CLI authenticated (for `create-github-prerelease`)
-- `git` available on the runner (for `compute-next-prerelease-tag`)
+When `channel=rc`, signing steps are enabled automatically.
 
-## Used By
+### Windows (`platform=windows`)
 
-| Project | Platform |
-|---------|----------|
-| [aiden-windows](https://github.com/zhangyu528/aiden-windows) | Windows (win-x64) |
+Required repository/org vars:
+- `SIGNPATH_ORGANIZATION_ID`
+- `SIGNPATH_PROJECT_SLUG`
+- `SIGNPATH_SIGNING_POLICY_SLUG`
+- `SIGNPATH_UNSIGNED_ARTIFACT_CFG`
+- `SIGNPATH_INSTALLER_ARTIFACT_CFG`
+
+Required secret:
+- `SIGNPATH_API_TOKEN` (pass to reusable workflow as `signpath_api_token`)
+
+### macOS (`platform=macos`)
+
+Required repository/org vars:
+- `APPLE_SIGNING_IDENTITY`
+- `APPLE_INSTALLER_SIGNING_IDENTITY`
+- `APPLE_TEAM_ID`
+
+Required secrets:
+- `APPLE_ID`
+- `APPLE_APP_PASSWORD`
+
+## Layout
+
+- `.github/workflows/pre-release-entry.yml`: Single reusable pre-release entry
+- `actions/common/*`: Cross-platform building blocks
+- `actions/windows/*`: Windows-specific actions
+- `actions/macos/*`: macOS-specific actions
+- `examples/*`: End-to-end examples
+
+## Examples
+
+- Caller Windows single-entry: `examples/caller-windows-entry.yml`
+- Caller macOS single-entry: `examples/caller-macos-entry.yml`

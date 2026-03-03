@@ -1,0 +1,26 @@
+name: 'macOS Sign and Verify App Bundle'
+description: 'Signs and verifies a macOS .app bundle using Developer ID Application certificate.'
+author: 'zhangyu528'
+
+inputs:
+  app_path:
+    description: 'Path to .app bundle.'
+    required: true
+  signing_identity:
+    description: 'Developer ID Application signing identity.'
+    required: true
+
+outputs:
+  signed_app_path:
+    description: 'Signed .app bundle path.'
+    value: ${{ inputs.app_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Sign and verify app bundle
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-sign-and-verify-app-bundle.ps1" `
+          -AppPath '${{ inputs.app_path }}' `
+          -SigningIdentity '${{ inputs.signing_identity }}'
