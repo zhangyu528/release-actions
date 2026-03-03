@@ -45,33 +45,89 @@ function Get-NumericVersion {
 function Test-PublishableExeProject {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProjectPath,
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectName
+        [string]$ProjectPath
     )
 
-    if ($ProjectName -match '(?i)(^|\.)tests?$') {
+    $projectName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
+    if ($projectName -match '(?i)(^|\.)tests?$') {
         return $false
     }
+
+    $outputType = Get-ProjectOutputType -ProjectPath $ProjectPath
+    if ([string]::IsNullOrWhiteSpace($outputType)) {
+        Write-Host "Skip project '$projectName' (OutputType is empty)"
+        return $false
+    }
+
+    $isPublishable = ($outputType -ieq 'Exe' -or $outputType -ieq 'WinExe')
+    Write-Host "Project '$projectName' OutputType='$outputType' Publish=$isPublishable"
+    return $isPublishable
+}
+
+function Get-ProjectOutputType {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath
+    )
 
     try {
-        [xml]$xml = Get-Content -Path $ProjectPath -Raw
-        $outputTypes = @($xml.Project.PropertyGroup.OutputType) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        if ($outputTypes.Count -eq 0) {
-            return $false
+        $rawOutput = & dotnet msbuild $ProjectPath -nologo -verbosity:quiet -getProperty:OutputType 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet msbuild failed with exit code $LASTEXITCODE. Output: $($rawOutput -join [Environment]::NewLine)"
         }
 
-        foreach ($outputType in $outputTypes) {
-            $normalized = $outputType.Trim()
-            if ($normalized -ieq 'Exe' -or $normalized -ieq 'WinExe') {
-                return $true
-            }
+        $lines = @($rawOutput | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($lines.Length -eq 0) {
+            return ''
         }
-        return $false
+
+        return $lines[-1].Trim()
     }
     catch {
-        throw "Failed to evaluate project type for '$ProjectName' at '$ProjectPath': $($_.Exception.Message)"
+        $projectName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
+        throw "Failed to evaluate project type for '$projectName' at '$ProjectPath': $($_.Exception.Message)"
     }
+}
+
+function Get-SolutionProjectPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SolutionPath,
+        [Parameter(Mandatory = $true)]
+        [string]$SolutionDir
+    )
+
+    $rawListOutput = & dotnet sln $SolutionPath list 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet sln list failed with exit code $LASTEXITCODE. Output: $($rawListOutput -join [Environment]::NewLine)"
+    }
+
+    $relativeProjectPaths = @(
+        $rawListOutput |
+        ForEach-Object { [string]$_ } |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Where-Object { $_ -match '(?i)\.csproj$' }
+    )
+
+    if ($relativeProjectPaths.Length -eq 0) {
+        throw "No .csproj entries found from 'dotnet sln $SolutionPath list'."
+    }
+
+    $resolvedProjects = @()
+    foreach ($relativePath in $relativeProjectPaths) {
+        $projectPath = Join-Path $SolutionDir ($relativePath -replace '\\', [System.IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path $projectPath)) {
+            throw "Project file not found: $projectPath"
+        }
+
+        $resolvedProjects += [pscustomobject]@{
+            Name = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
+            Path = $projectPath
+        }
+    }
+
+    return $resolvedProjects
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -85,34 +141,9 @@ if (-not (Test-Path $SolutionPath)) {
 }
 
 $solutionDir = Split-Path -Parent (Resolve-Path $SolutionPath).Path
-$projectLinePattern = '^Project\(".*"\)\s*=\s*"(?<name>[^"]+)"\s*,\s*"(?<path>[^"]+\.csproj)"\s*,'
+$solutionProjects = @(Get-SolutionProjectPaths -SolutionPath $SolutionPath -SolutionDir $solutionDir)
 
-$solutionProjects = @()
-Get-Content -Path $SolutionPath | ForEach-Object {
-    $line = $_
-    $match = [regex]::Match($line, $projectLinePattern)
-    if (-not $match.Success) {
-        return
-    }
-
-    $name = $match.Groups['name'].Value
-    $relativePath = $match.Groups['path'].Value -replace '\\', [System.IO.Path]::DirectorySeparatorChar
-    $projectPath = Join-Path $solutionDir $relativePath
-    if (-not (Test-Path $projectPath)) {
-        throw "Project file not found for '$name': $projectPath"
-    }
-
-    $solutionProjects += [pscustomobject]@{
-        Name = $name
-        Path = $projectPath
-    }
-}
-
-if ($solutionProjects.Count -eq 0) {
-    throw "No .csproj entries found in solution '$SolutionPath'."
-}
-
-$publishProjects = @($solutionProjects | Where-Object { Test-PublishableExeProject -ProjectPath $_.Path -ProjectName $_.Name })
+$publishProjects = @($solutionProjects | Where-Object { Test-PublishableExeProject -ProjectPath $_.Path })
 if ($publishProjects.Count -eq 0) {
     throw "No publishable executable projects found in solution '$SolutionPath'."
 }
