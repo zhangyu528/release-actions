@@ -34,7 +34,7 @@ function Upload-ReleaseAsset {
 
     $cleanUrl = $BaseUploadUrl -replace '\{\?name,label\}$', ''
     $encodedName = [uri]::EscapeDataString($AssetName)
-    $assetUrl = "$cleanUrl?name=$encodedName"
+    $assetUrl = "${cleanUrl}?name=$encodedName"
     $headers = @{
         Authorization = "Bearer $Token"
         Accept = "application/vnd.github+json"
