@@ -45,7 +45,6 @@ ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#PostInstallLaunchExeName}
 CloseApplications=yes
-ForceCloseApplications=yes
 RestartApplications=no
 
 [Files]
