@@ -21,18 +21,17 @@ inputs:
   artifact_paths:
     description: 'Newline-delimited unsigned app binary paths.'
     required: true
+  unsigned_exe_paths_json:
+    description: 'JSON array of unsigned exe paths to replace after signing.'
+    required: true
   signed_apps_dir:
     description: 'Directory for signed app outputs.'
     required: false
     default: 'artifacts/signed/apps'
-  tray_target:
-    description: 'Target path for tray executable.'
+  staging_root:
+    description: 'Stage root used for validation and replacement.'
     required: false
-    default: 'artifacts/stage/tray/Aiden.TrayMonitor.exe'
-  agent_target:
-    description: 'Target path for agent executable.'
-    required: false
-    default: 'artifacts/stage/agent/Aiden.RuntimeAgent.exe'
+    default: 'artifacts/stage'
 
 outputs:
   artifact_id:
@@ -65,5 +64,7 @@ runs:
       run: |
         & "${{ github.action_path }}/scripts/sign-and-verify-app-binaries.ps1" `
           -SignedAppsDir '${{ inputs.signed_apps_dir }}' `
-          -TrayTarget '${{ inputs.tray_target }}' `
-          -AgentTarget '${{ inputs.agent_target }}'
+          -UnsignedExePathsJson @'
+        ${{ inputs.unsigned_exe_paths_json }}
+        '@ `
+          -StagingRoot '${{ inputs.staging_root }}'

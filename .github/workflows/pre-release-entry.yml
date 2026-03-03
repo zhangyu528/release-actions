@@ -26,7 +26,7 @@ on:
         default: 'win-x64'
         type: string
       windows_solution_path:
-        description: 'Path to solution file used for built-in windows publish targets.'
+        description: 'Path to solution file used to discover publishable windows executable projects.'
         required: false
         default: 'Aiden.sln'
         type: string
@@ -197,7 +197,8 @@ jobs:
           "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
           "checksums_file=$env:CHECKSUMS_FILE" >> $env:GITHUB_OUTPUT
 
-      - uses: zhangyu528/release-actions/actions/windows/build-dotnet-stage@main
+      - id: build_stage
+        uses: zhangyu528/release-actions/actions/windows/build-dotnet-stage@main
         with:
           version: ${{ steps.next_tag.outputs.version }}
           rid: ${{ inputs.windows_rid }}
@@ -206,6 +207,7 @@ jobs:
       - uses: zhangyu528/release-actions/actions/windows/stage-package@main
         with:
           version: ${{ steps.next_tag.outputs.version }}
+          publish_dirs_json: ${{ steps.build_stage.outputs.published_project_dirs_json }}
           icon_source: ${{ inputs.windows_icon_source }}
           helper_script_sources: ${{ inputs.windows_helper_script_sources }}
 
@@ -219,6 +221,24 @@ jobs:
           installer_artifact_cfg: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CFG }}
 
       - if: ${{ inputs.channel == 'rc' }}
+        name: Build unsigned app artifact paths
+        id: windows_unsigned_apps
+        shell: pwsh
+        env:
+          EXE_JSON: ${{ steps.build_stage.outputs.published_exe_paths_json }}
+        run: |
+          $paths = @($env:EXE_JSON | ConvertFrom-Json)
+          if ($paths.Count -eq 0) {
+            throw 'No unsigned exe paths were produced by build-dotnet-stage.'
+          }
+          $artifactPaths = $paths -join "`n"
+          $marker = [Guid]::NewGuid().ToString('N')
+          "artifact_paths<<$marker" >> $env:GITHUB_OUTPUT
+          $artifactPaths >> $env:GITHUB_OUTPUT
+          $marker >> $env:GITHUB_OUTPUT
+          "unsigned_exe_paths_json=$env:EXE_JSON" >> $env:GITHUB_OUTPUT
+
+      - if: ${{ inputs.channel == 'rc' }}
         uses: zhangyu528/release-actions/actions/windows/sign-and-verify-app-binaries@main
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.signpath_api_token }}
@@ -228,9 +248,8 @@ jobs:
           signing_policy_slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
           artifact_configuration_slug: ${{ vars.SIGNPATH_UNSIGNED_ARTIFACT_CFG }}
           artifact_name: unsigned-app-binaries-${{ steps.next_tag.outputs.computed_tag }}
-          artifact_paths: |
-            artifacts/stage/tray/Aiden.TrayMonitor.exe
-            artifacts/stage/agent/Aiden.RuntimeAgent.exe
+          artifact_paths: ${{ steps.windows_unsigned_apps.outputs.artifact_paths }}
+          unsigned_exe_paths_json: ${{ steps.windows_unsigned_apps.outputs.unsigned_exe_paths_json }}
 
       - uses: zhangyu528/release-actions/actions/windows/build-inno-installer@main
         with:

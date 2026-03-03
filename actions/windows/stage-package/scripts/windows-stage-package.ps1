@@ -1,10 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
-    [Parameter(Mandatory = $false)]
-    [string]$TrayPublishDir = 'artifacts/stage/tray',
-    [Parameter(Mandatory = $false)]
-    [string]$AgentPublishDir = 'artifacts/stage/agent',
+    [Parameter(Mandatory = $true)]
+    [string]$PublishDirsJson,
     [Parameter(Mandatory = $false)]
     [string]$PackageDir = 'artifacts/stage/package',
     [Parameter(Mandatory = $false)]
@@ -27,15 +25,21 @@ foreach ($dir in @($PackageDir, $InstallerDir)) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 }
 
-foreach ($path in @($TrayPublishDir, $AgentPublishDir)) {
+$publishDirs = @($PublishDirsJson | ConvertFrom-Json)
+if ($publishDirs.Count -eq 0) {
+    throw 'No publish directories provided.'
+}
+
+foreach ($path in $publishDirs) {
     if (-not (Test-Path $path)) {
         throw "Publish directory not found: $path"
     }
 }
 
 Write-Host "Staging install payload for version $Version"
-Copy-Item -Path (Join-Path $TrayPublishDir '*') -Destination $PackageDir -Recurse -Force
-Copy-Item -Path (Join-Path $AgentPublishDir '*') -Destination $PackageDir -Recurse -Force
+foreach ($publishDir in $publishDirs) {
+    Copy-Item -Path (Join-Path $publishDir '*') -Destination $PackageDir -Recurse -Force
+}
 
 if (-not [string]::IsNullOrWhiteSpace($IconSource)) {
     if (Test-Path $IconSource) {

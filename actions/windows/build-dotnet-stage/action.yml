@@ -1,5 +1,5 @@
 name: 'Build Dotnet Stage'
-description: 'Builds built-in windows publish targets from solution into standardized staging directories.'
+description: 'Builds executable projects discovered from solution and stages outputs by project name.'
 author: 'zhangyu528'
 
 inputs:
@@ -10,7 +10,7 @@ inputs:
     description: 'Dotnet runtime identifier (for example win-x64 or osx-arm64).'
     required: true
   solution_path:
-    description: 'Path to solution file used to resolve built-in publish targets.'
+    description: 'Path to solution file used to discover publishable executable projects.'
     required: true
   configuration:
     description: 'Dotnet build configuration.'
@@ -37,6 +37,12 @@ outputs:
   staging_dir:
     description: 'Root staging directory that contains published app outputs.'
     value: ${{ steps.build.outputs.staging_dir }}
+  published_project_dirs_json:
+    description: 'JSON array of published project directories under staging root.'
+    value: ${{ steps.build.outputs.published_project_dirs_json }}
+  published_exe_paths_json:
+    description: 'JSON array of published exe paths.'
+    value: ${{ steps.build.outputs.published_exe_paths_json }}
 
 runs:
   using: 'composite'

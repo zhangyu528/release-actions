@@ -1,19 +1,14 @@
 name: 'Windows Stage Package'
-description: 'Stages installer payload from published binaries and helper scripts.'
+description: 'Stages installer payload from discovered publish directories and helper scripts.'
 author: 'zhangyu528'
 
 inputs:
   version:
     description: 'Release version without leading v.'
     required: true
-  tray_publish_dir:
-    description: 'Tray publish output directory.'
-    required: false
-    default: 'artifacts/stage/tray'
-  agent_publish_dir:
-    description: 'Agent publish output directory.'
-    required: false
-    default: 'artifacts/stage/agent'
+  publish_dirs_json:
+    description: 'JSON array of publish output directories to merge into package dir.'
+    required: true
   package_dir:
     description: 'Output package directory consumed by installer builder.'
     required: false
@@ -44,8 +39,9 @@ runs:
       run: |
         & "${{ github.action_path }}/scripts/windows-stage-package.ps1" `
           -Version '${{ inputs.version }}' `
-          -TrayPublishDir '${{ inputs.tray_publish_dir }}' `
-          -AgentPublishDir '${{ inputs.agent_publish_dir }}' `
+          -PublishDirsJson @'
+        ${{ inputs.publish_dirs_json }}
+        '@ `
           -PackageDir '${{ inputs.package_dir }}' `
           -InstallerDir '${{ inputs.installer_dir }}' `
           -IconSource '${{ inputs.icon_source }}' `

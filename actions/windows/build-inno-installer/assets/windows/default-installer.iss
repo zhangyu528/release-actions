@@ -18,14 +18,6 @@
 #define InstallerFilename "Aiden-Setup-0.0.0-win-x64"
 #endif
 
-#ifndef TrayExeName
-#define TrayExeName "Aiden.TrayMonitor.exe"
-#endif
-
-#ifndef AgentExeName
-#define AgentExeName "Aiden.RuntimeAgent.exe"
-#endif
-
 #ifndef PostInstallLaunchExeName
 #define PostInstallLaunchExeName "Aiden.TrayMonitor.exe"
 #endif
@@ -51,7 +43,7 @@ Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
-UninstallDisplayIcon={app}\{#TrayExeName}
+UninstallDisplayIcon={app}\{#PostInstallLaunchExeName}
 CloseApplications=yes
 ForceCloseApplications=yes
 RestartApplications=no
@@ -63,8 +55,8 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: desktopicon; Description: Create a desktop icon; GroupDescription: Additional icons; Flags: unchecked
 
 [Icons]
-Name: "{group}\{#AppName} Tray Monitor"; Filename: "{app}\{#TrayExeName}"; IconFilename: "{app}\{#SetupIconName}"
-Name: "{commondesktop}\{#AppName} Tray Monitor"; Filename: "{app}\{#TrayExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#SetupIconName}"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#PostInstallLaunchExeName}"; IconFilename: "{app}\{#SetupIconName}"
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#PostInstallLaunchExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#SetupIconName}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}RuntimeAgent"; ValueData: """{app}\{#AutoRunExeName}"""; Flags: uninsdeletevalue

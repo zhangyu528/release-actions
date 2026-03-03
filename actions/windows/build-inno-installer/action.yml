@@ -22,14 +22,6 @@ inputs:
     description: 'Installer bitness suffix in output filename.'
     required: false
     default: 'win-x64'
-  tray_exe_name:
-    description: 'Tray executable filename.'
-    required: false
-    default: 'Aiden.TrayMonitor.exe'
-  agent_exe_name:
-    description: 'Agent executable filename.'
-    required: false
-    default: 'Aiden.RuntimeAgent.exe'
   postinstall_launch_exe:
     description: 'Executable filename to launch after installation.'
     required: false
@@ -65,8 +57,6 @@ runs:
           -OutputDir '${{ inputs.output_dir }}' `
           -AppName '${{ inputs.app_name }}' `
           -InstallerBitness '${{ inputs.installer_bitness }}' `
-          -TrayExeName '${{ inputs.tray_exe_name }}' `
-          -AgentExeName '${{ inputs.agent_exe_name }}' `
           -PostInstallLaunchExe '${{ inputs.postinstall_launch_exe }}' `
           -AutoRunExe '${{ inputs.autorun_exe }}' `
           -SetupIconName '${{ inputs.setup_icon_name }}' `

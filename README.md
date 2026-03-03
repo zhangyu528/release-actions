@@ -30,7 +30,7 @@ jobs:
       signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
 ```
 
-Windows flow publishes built-in targets from solution: `Aiden.TrayMonitor` -> `artifacts/stage/tray`, `Aiden.RuntimeAgent` -> `artifacts/stage/agent`.
+Windows flow auto-discovers executable projects from solution and publishes each project to `artifacts/stage/<ProjectName>`.
 Windows install behavior is configurable via entry inputs: `windows_postinstall_launch_exe` and `windows_autorun_exe`.
 Windows app build also writes release-computed version into binaries:
 - `Version` and `InformationalVersion`: full semantic version (for example `0.1.0-rc.3`)

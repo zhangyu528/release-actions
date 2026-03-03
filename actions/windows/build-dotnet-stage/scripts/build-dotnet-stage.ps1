@@ -42,6 +42,38 @@ function Get-NumericVersion {
     return "$major.$minor.$patch.$revision"
 }
 
+function Test-PublishableExeProject {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectName
+    )
+
+    if ($ProjectName -match '(?i)(^|\.)tests?$') {
+        return $false
+    }
+
+    try {
+        [xml]$xml = Get-Content -Path $ProjectPath -Raw
+        $outputTypes = @($xml.Project.PropertyGroup.OutputType) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        if ($outputTypes.Count -eq 0) {
+            return $false
+        }
+
+        foreach ($outputType in $outputTypes) {
+            $normalized = $outputType.Trim()
+            if ($normalized -ieq 'Exe' -or $normalized -ieq 'WinExe') {
+                return $true
+            }
+        }
+        return $false
+    }
+    catch {
+        throw "Failed to evaluate project type for '$ProjectName' at '$ProjectPath': $($_.Exception.Message)"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw 'Version is empty.'
 }
@@ -53,15 +85,9 @@ if (-not (Test-Path $SolutionPath)) {
 }
 
 $solutionDir = Split-Path -Parent (Resolve-Path $SolutionPath).Path
-
-$targetMap = @{
-    'Aiden.TrayMonitor' = 'tray'
-    'Aiden.RuntimeAgent' = 'agent'
-}
-
-$resolvedProjects = @{}
 $projectLinePattern = '^Project\(".*"\)\s*=\s*"(?<name>[^"]+)"\s*,\s*"(?<path>[^"]+\.csproj)"\s*,'
 
+$solutionProjects = @()
 Get-Content -Path $SolutionPath | ForEach-Object {
     $line = $_
     $match = [regex]::Match($line, $projectLinePattern)
@@ -70,36 +96,42 @@ Get-Content -Path $SolutionPath | ForEach-Object {
     }
 
     $name = $match.Groups['name'].Value
-    if (-not $targetMap.ContainsKey($name)) {
-        return
-    }
-
     $relativePath = $match.Groups['path'].Value -replace '\\', [System.IO.Path]::DirectorySeparatorChar
     $projectPath = Join-Path $solutionDir $relativePath
-    $resolvedProjects[$name] = $projectPath
+    if (-not (Test-Path $projectPath)) {
+        throw "Project file not found for '$name': $projectPath"
+    }
+
+    $solutionProjects += [pscustomobject]@{
+        Name = $name
+        Path = $projectPath
+    }
 }
 
-$missingProjects = @($targetMap.Keys | Where-Object { -not $resolvedProjects.ContainsKey($_) })
-if ($missingProjects.Count -gt 0) {
-    throw "Required publish projects not found in solution '$SolutionPath': $($missingProjects -join ', ')"
+if ($solutionProjects.Count -eq 0) {
+    throw "No .csproj entries found in solution '$SolutionPath'."
+}
+
+$publishProjects = @($solutionProjects | Where-Object { Test-PublishableExeProject -ProjectPath $_.Path -ProjectName $_.Name })
+if ($publishProjects.Count -eq 0) {
+    throw "No publishable executable projects found in solution '$SolutionPath'."
 }
 
 $stagingRoot = 'artifacts/stage'
+if (Test-Path $stagingRoot) {
+    Remove-Item -Path $stagingRoot -Recurse -Force -ErrorAction Stop
+}
 New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
 $numericVersion = Get-NumericVersion -SemanticVersion $Version
+$publishedProjectDirs = @()
+$publishedExePaths = @()
 
-foreach ($projectName in $targetMap.Keys) {
-    $projectPath = $resolvedProjects[$projectName]
-    if (-not (Test-Path $projectPath)) {
-        throw "Project file not found for '$projectName': $projectPath"
-    }
-
-    $outputSubdir = $targetMap[$projectName]
-    $outputDir = Join-Path $stagingRoot $outputSubdir
+foreach ($project in $publishProjects) {
+    $outputDir = Join-Path $stagingRoot $project.Name
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
-    dotnet publish $projectPath `
+    dotnet publish $project.Path `
       -c $Configuration `
       -r $Rid `
       --self-contained $SelfContained `
@@ -113,8 +145,19 @@ foreach ($projectName in $targetMap.Keys) {
       /p:DebugSymbols=false `
       -o $outputDir
     if ($LASTEXITCODE -ne 0) {
-        throw "dotnet publish failed for '$projectName' with exit code $LASTEXITCODE"
+        throw "dotnet publish failed for '$($project.Name)' with exit code $LASTEXITCODE"
     }
+
+    $publishedProjectDirs += ($outputDir -replace '\\','/')
+
+    $projectExes = @(Get-ChildItem -Path $outputDir -Filter '*.exe' -File -ErrorAction Stop)
+    foreach ($exe in $projectExes) {
+        $publishedExePaths += ($exe.FullName -replace [regex]::Escape((Resolve-Path '.').Path + '\\'), '' -replace '\\','/')
+    }
+}
+
+if ($publishedExePaths.Count -eq 0) {
+    throw "No .exe files found in published outputs under '$stagingRoot'."
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PreparePackageScript)) {
@@ -124,7 +167,15 @@ if (-not [string]::IsNullOrWhiteSpace($PreparePackageScript)) {
     & $PreparePackageScript -Version $Version
 }
 
+$projectDirsJson = $publishedProjectDirs | ConvertTo-Json -Compress -AsArray
+$exePathsJson = $publishedExePaths | ConvertTo-Json -Compress -AsArray
+
 Write-Host "Staging complete at: $stagingRoot"
+Write-Host "Published project dirs: $projectDirsJson"
+Write-Host "Published exe paths: $exePathsJson"
+
 if ($env:GITHUB_OUTPUT) {
     "staging_dir=$stagingRoot" >> $env:GITHUB_OUTPUT
+    "published_project_dirs_json=$projectDirsJson" >> $env:GITHUB_OUTPUT
+    "published_exe_paths_json=$exePathsJson" >> $env:GITHUB_OUTPUT
 }
