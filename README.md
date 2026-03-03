@@ -26,7 +26,7 @@ jobs:
       windows_postinstall_launch_exe: Aiden.TrayMonitor.exe
       windows_autorun_exe: Aiden.RuntimeAgent.exe
     secrets:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
+      repo_token: ${{ secrets.GITHUB_TOKEN }}
       signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
 ```
 
@@ -54,7 +54,7 @@ jobs:
         scripts/download-collector.sh
       macos_pkg_identifier: com.aiden.app
     secrets:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
+      repo_token: ${{ secrets.GITHUB_TOKEN }}
       apple_id: ${{ secrets.APPLE_ID }}
       apple_app_password: ${{ secrets.APPLE_APP_PASSWORD }}
 ```

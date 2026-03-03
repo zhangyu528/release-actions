@@ -81,7 +81,7 @@ on:
         default: ''
         type: string
     secrets:
-      github_token:
+      repo_token:
         required: true
       signpath_api_token:
         required: false
@@ -307,14 +307,14 @@ jobs:
         with:
           tag: ${{ steps.next_tag.outputs.computed_tag }}
           target_branch: ${{ github.ref_name }}
-          github_token: ${{ secrets.github_token }}
+          github_token: ${{ secrets.repo_token }}
           assets_manifest: ${{ steps.windows_manifest.outputs.manifest }}
 
       - name: Cleanup failed prerelease and tag (windows)
         if: ${{ failure() && steps.next_tag.outputs.computed_tag != '' }}
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ secrets.repo_token }}
           TAG: ${{ steps.next_tag.outputs.computed_tag }}
         run: |
           Write-Host "Cleanup start for tag: $env:TAG"
@@ -477,14 +477,14 @@ jobs:
         with:
           tag: ${{ steps.next_tag.outputs.computed_tag }}
           target_branch: ${{ github.ref_name }}
-          github_token: ${{ secrets.github_token }}
+          github_token: ${{ secrets.repo_token }}
           assets_manifest: ${{ steps.macos_manifest.outputs.manifest }}
 
       - name: Cleanup failed prerelease and tag (macos)
         if: ${{ failure() && steps.next_tag.outputs.computed_tag != '' }}
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ secrets.repo_token }}
           TAG: ${{ steps.next_tag.outputs.computed_tag }}
         run: |
           Write-Host "Cleanup start for tag: $env:TAG"
