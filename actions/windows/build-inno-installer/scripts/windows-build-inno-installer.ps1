@@ -40,9 +40,26 @@ if (-not (Test-Path $issTemplate)) {
     throw "ISS template not found: $issTemplate"
 }
 
+$resolvedSetupIconName = $SetupIconName
+$setupIconPath = Join-Path $SourceDir $resolvedSetupIconName
+if (-not (Test-Path $setupIconPath)) {
+    $availableIcons = @(Get-ChildItem -Path $SourceDir -Filter '*.ico' -File -ErrorAction SilentlyContinue)
+    if ($availableIcons.Count -eq 1) {
+        $resolvedSetupIconName = $availableIcons[0].Name
+        Write-Warning "Setup icon '$SetupIconName' not found. Falling back to detected icon '$resolvedSetupIconName'."
+    }
+    elseif ($availableIcons.Count -gt 1) {
+        $iconList = $availableIcons | ForEach-Object { $_.Name } | Sort-Object
+        throw "Setup icon '$SetupIconName' not found in '$SourceDir'. Multiple .ico files were found: $($iconList -join ', '). Set input 'setup_icon_name' explicitly."
+    }
+    else {
+        throw "Setup icon '$SetupIconName' not found in '$SourceDir', and no .ico file is available for fallback."
+    }
+}
+
 $outputFileBase = "$OutputNamePrefix-$Version-$InstallerBitness"
 
-& $iscc `
+$isccOutput = & $iscc `
   "/DAppName=$AppName" `
   "/DAppVersion=$Version" `
   "/DSourceDir=$SourceDir" `
@@ -50,8 +67,12 @@ $outputFileBase = "$OutputNamePrefix-$Version-$InstallerBitness"
   "/DInstallerFilename=$outputFileBase" `
   "/DPostInstallLaunchExeName=$PostInstallLaunchExe" `
   "/DAutoRunExeName=$AutoRunExe" `
-  "/DSetupIconName=$SetupIconName" `
-  $issTemplate
+  "/DSetupIconName=$resolvedSetupIconName" `
+  $issTemplate 2>&1
+
+if ($isccOutput) {
+    $isccOutput | ForEach-Object { Write-Host $_ }
+}
 
 if ($LASTEXITCODE -ne 0) {
     throw "ISCC failed with exit code $LASTEXITCODE"
