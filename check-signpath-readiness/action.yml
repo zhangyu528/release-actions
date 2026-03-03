@@ -1,0 +1,38 @@
+name: 'Check SignPath Readiness'
+description: 'Validates that all required SignPath configuration variables are present before attempting to sign.'
+author: 'zhangyu528'
+
+inputs:
+  signpath_ready:
+    description: 'Set to true when SignPath onboarding is complete'
+    required: true
+  organization_id:
+    description: 'SignPath Organization ID'
+    required: true
+  project_slug:
+    description: 'SignPath Project slug'
+    required: true
+  signing_policy_slug:
+    description: 'SignPath Signing Policy slug'
+    required: true
+  unsigned_artifact_cfg:
+    description: 'SignPath artifact configuration slug for unsigned app binaries'
+    required: true
+  installer_artifact_cfg:
+    description: 'SignPath artifact configuration slug for unsigned installer'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check readiness
+      shell: pwsh
+      env:
+        SIGNPATH_READY: ${{ inputs.signpath_ready }}
+        SIGNPATH_ORGANIZATION_ID: ${{ inputs.organization_id }}
+        SIGNPATH_PROJECT_SLUG: ${{ inputs.project_slug }}
+        SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing_policy_slug }}
+        SIGNPATH_UNSIGNED_ARTIFACT_CFG: ${{ inputs.unsigned_artifact_cfg }}
+        SIGNPATH_INSTALLER_ARTIFACT_CFG: ${{ inputs.installer_artifact_cfg }}
+      run: |
+        & "${{ github.action_path }}/scripts/check-signpath-readiness.ps1"

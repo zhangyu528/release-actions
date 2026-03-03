@@ -1,0 +1,31 @@
+name: 'Compute Next Prerelease Tag'
+description: 'Computes the next sequential prerelease tag using git tags. Outputs both the full tag and the clean version string.'
+author: 'zhangyu528'
+
+inputs:
+  base_version:
+    description: 'Base version in vMAJOR.MINOR.PATCH format (e.g. v0.1.0)'
+    required: true
+  channel:
+    description: 'Prerelease channel (e.g. alpha, beta, rc)'
+    required: false
+    default: 'alpha'
+
+outputs:
+  computed_tag:
+    description: 'The full computed tag (e.g. v0.1.0-alpha.5)'
+    value: ${{ steps.compute.outputs.computed_tag }}
+  version:
+    description: 'Clean version string without leading v (e.g. 0.1.0-alpha.5)'
+    value: ${{ steps.compute.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Compute tag
+      id: compute
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/compute-next-tag.ps1" `
+          -BaseVersion '${{ inputs.base_version }}' `
+          -Channel '${{ inputs.channel }}'

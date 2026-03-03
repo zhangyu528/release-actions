@@ -1,0 +1,31 @@
+name: 'Create GitHub Prerelease'
+description: 'Creates a GitHub pre-release for a given tag using the gh CLI and outputs the release and upload URLs.'
+author: 'zhangyu528'
+
+inputs:
+  tag:
+    description: 'The tag to create the release against (e.g. v0.1.0-alpha.5)'
+    required: true
+  target_branch:
+    description: 'Target branch for the release'
+    required: false
+    default: 'main'
+
+outputs:
+  release_url:
+    description: 'URL of the created GitHub release'
+    value: ${{ steps.create.outputs.release_url }}
+  release_upload_url:
+    description: 'Upload URL for releasing assets'
+    value: ${{ steps.create.outputs.release_upload_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create release
+      id: create
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/create-github-release.ps1" `
+          -Tag '${{ inputs.tag }}' `
+          -TargetBranch '${{ inputs.target_branch }}'
