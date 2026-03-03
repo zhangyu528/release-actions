@@ -50,14 +50,16 @@ function Upload-ReleaseAsset {
 }
 
 Write-Host "Creating GitHub pre-release for tag: $Tag (target: $TargetBranch)" -ForegroundColor Cyan
+$env:GH_TOKEN = $GitHubToken
+
 $releaseUrl = gh release create $Tag --prerelease --target $TargetBranch --generate-notes
 if (-not $releaseUrl) {
     throw "Failed to create GitHub release for tag $Tag"
 }
 $uploadUrl = gh release view $Tag --json uploadUrl --jq .uploadUrl
 
-$manifest = $AssetsManifest | ConvertFrom-Json
-if ($null -eq $manifest -or $manifest.Count -eq 0) {
+$manifest = @($AssetsManifest | ConvertFrom-Json)
+if ($manifest.Length -eq 0) {
     throw 'assets_manifest must contain at least one asset entry.'
 }
 
