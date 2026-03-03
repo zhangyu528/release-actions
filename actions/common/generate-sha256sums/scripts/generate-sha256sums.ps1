@@ -10,14 +10,14 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$files = $FilesJson | ConvertFrom-Json
-if ($null -eq $files -or $files.Count -eq 0) {
+$files = @($FilesJson | ConvertFrom-Json)
+if ($files.Length -eq 0) {
     throw 'files_json must contain at least one file path.'
 }
 
 $lines = @()
 foreach ($raw in $files) {
-    $file = $raw.Replace('{version}', $Version)
+    $file = ([string]$raw).Replace('{version}', $Version)
     if (-not (Test-Path $file)) {
         throw "File not found for checksum: $file"
     }
