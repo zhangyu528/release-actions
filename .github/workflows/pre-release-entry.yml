@@ -359,6 +359,7 @@ jobs:
         shell: pwsh
         env:
           CHANNEL: ${{ inputs.channel }}
+          MACOS_BUILD_SYSTEM: ${{ inputs.macos_build_system }}
           MACOS_WORKSPACE_PATH: ${{ inputs.macos_workspace_path }}
           MACOS_PROJECT_PATH: ${{ inputs.macos_project_path }}
           MACOS_SCHEME: ${{ inputs.macos_scheme }}
@@ -371,10 +372,15 @@ jobs:
           APPLE_ID: ${{ secrets.apple_id }}
           APPLE_APP_PASSWORD: ${{ secrets.apple_app_password }}
         run: |
-          $hasWorkspace = -not [string]::IsNullOrWhiteSpace($env:MACOS_WORKSPACE_PATH)
-          $hasProject = -not [string]::IsNullOrWhiteSpace($env:MACOS_PROJECT_PATH)
-          if ($hasWorkspace -eq $hasProject) { throw 'Provide exactly one of macos_workspace_path or macos_project_path when platform=macos.' }
-          if ([string]::IsNullOrWhiteSpace($env:MACOS_SCHEME)) { throw 'macos_scheme is required when platform=macos.' }
+          if ($env:MACOS_BUILD_SYSTEM -notin @('xcode', 'swiftpm')) {
+            throw "macos_build_system must be one of: xcode, swiftpm. Actual: $($env:MACOS_BUILD_SYSTEM)"
+          }
+          if ($env:MACOS_BUILD_SYSTEM -eq 'xcode') {
+            $hasWorkspace = -not [string]::IsNullOrWhiteSpace($env:MACOS_WORKSPACE_PATH)
+            $hasProject = -not [string]::IsNullOrWhiteSpace($env:MACOS_PROJECT_PATH)
+            if ($hasWorkspace -eq $hasProject) { throw 'Provide exactly one of macos_workspace_path or macos_project_path when platform=macos and macos_build_system=xcode.' }
+            if ([string]::IsNullOrWhiteSpace($env:MACOS_SCHEME)) { throw 'macos_scheme is required when platform=macos and macos_build_system=xcode.' }
+          }
           if ([string]::IsNullOrWhiteSpace($env:MACOS_RUNTIME_HELPER_DIR)) { throw 'macos_runtime_helper_dir is required when platform=macos.' }
           $pkgIdentifier = $env:MACOS_PKG_IDENTIFIER
           if ([string]::IsNullOrWhiteSpace($pkgIdentifier)) {
