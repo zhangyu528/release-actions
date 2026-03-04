@@ -11,7 +11,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repoRoot = if (-not [string]::IsNullOrWhiteSpace($WorkspaceDir)) { Resolve-Path $WorkspaceDir } else { Resolve-Path (Join-Path $PSScriptRoot '..\\..\\..') }
+$repoRoot = if (-not [string]::IsNullOrWhiteSpace($WorkspaceDir)) {
+    Resolve-Path $WorkspaceDir
+}
+elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_WORKSPACE)) {
+    Resolve-Path $env:GITHUB_WORKSPACE
+}
+else {
+    Resolve-Path (Join-Path $PSScriptRoot '..\\..\\..')
+}
 $buildDir = Join-Path $repoRoot '.build/release'
 if (-not (Test-Path $buildDir)) {
     New-Item -ItemType Directory -Path $buildDir -Force | Out-Null

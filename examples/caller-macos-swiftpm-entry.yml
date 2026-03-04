@@ -1,0 +1,35 @@
+name: SwiftPM macOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: 'vMAJOR.MINOR.PATCH base tag'
+        required: true
+        type: string
+      channel:
+        description: 'Prerelease channel'
+        required: true
+        type: choice
+        default: alpha
+        options:
+          - alpha
+          - beta
+          - rc
+
+jobs:
+  prerelease:
+    uses: zhangyu528/release-actions/.github/workflows/pre-release-entry.yml@main
+    with:
+      platform: macos
+      base_version: ${{ inputs.base_version }}
+      channel: ${{ inputs.channel }}
+      macos_build_system: swiftpm
+      macos_swiftpm_app_signing_identity: ${{ secrets.APP_SIGN_IDENTITY }}
+      macos_runtime_helper_dir: scripts/runtime-deps
+      macos_pkg_identifier: com.aiden.mac
+    secrets:
+      repo_token: ${{ secrets.GITHUB_TOKEN }}
+      apple_id: ${{ secrets.APPLE_ID }}
+      apple_app_password: ${{ secrets.APPLE_APP_PASSWORD }}
+      signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}

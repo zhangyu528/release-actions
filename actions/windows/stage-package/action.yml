@@ -21,10 +21,11 @@ inputs:
     description: 'Optional icon path copied into package root.'
     required: false
     default: ''
-  helper_script_sources:
-    description: 'Newline-delimited helper scripts copied under package/scripts.'
+  runtime_helper_dir:
+    description: 'Relative path inside the caller repo where runtime helper scripts live.'
     required: false
-    default: ''
+    default: 'scripts/runtime-deps'
+    type: string
 
 outputs:
   package_dir:
@@ -45,7 +46,4 @@ runs:
           -PackageDir '${{ inputs.package_dir }}' `
           -InstallerDir '${{ inputs.installer_dir }}' `
           -IconSource '${{ inputs.icon_source }}' `
-          -ActionPath '${{ github.action_path }}' `
-          -HelperScriptSources @'
-        ${{ inputs.helper_script_sources }}
-        '@
+          -RuntimeHelperDir '${{ inputs.runtime_helper_dir }}'

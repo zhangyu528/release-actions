@@ -20,9 +20,6 @@ jobs:
       channel: ${{ inputs.channel }}
       windows_solution_path: Aiden.sln
       windows_icon_source: Aiden.TrayMonitor/Assets/aiden.ico
-      windows_helper_script_sources: |
-        Aiden.RuntimeAgent/scripts/download-vm.ps1
-        Aiden.RuntimeAgent/scripts/download-collector.ps1
       windows_postinstall_launch_exe: Aiden.TrayMonitor.exe
       windows_autorun_exe: Aiden.RuntimeAgent.exe
     secrets:
@@ -32,6 +29,7 @@ jobs:
 
 Windows flow auto-discovers executable projects from solution and publishes each project to `artifacts/stage/<ProjectName>`.
 Windows install behavior is configurable via entry inputs: `windows_postinstall_launch_exe` and `windows_autorun_exe`.
+Runtime helper scripts now live under `scripts/runtime-deps/` in the caller repo; `stage-package` automatically stages every `*.ps1` from that directory, so callers no longer need to pass `windows_helper_script_sources`.
 Windows app build also writes release-computed version into binaries:
 - `Version` and `InformationalVersion`: full semantic version (for example `0.1.0-rc.3`)
 - `AssemblyVersion` and `FileVersion`: numeric 4-part version (for example `0.1.0.3`)
@@ -49,9 +47,7 @@ jobs:
       macos_workspace_path: Aiden.xcworkspace
       macos_project_path: ''
       macos_scheme: Aiden
-      macos_runtime_helper_sources: |
-        scripts/download-vm.sh
-        scripts/download-collector.sh
+      macos_runtime_helper_dir: scripts/runtime-deps
       macos_pkg_identifier: com.aiden.app
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -63,6 +59,8 @@ macOS app build also writes release-computed version into bundle build settings:
 - `MARKETING_VERSION`: numeric `major.minor.patch` (for example `0.1.0`)
 - `CURRENT_PROJECT_VERSION`: prerelease sequence or `0` (for example `3` for `0.1.0-rc.3`)
 macOS installer/checksum output paths and staging layout are now internal defaults in release-actions.
+
+macOS runtime helper scripts now live under `scripts/runtime-deps/` in the caller repo; `stage-install-assets` stages every file from that directory so installers automatically include `install-runtime-deps.sh`, `download-vm.sh`, `download-collector.sh`, etc.
 
 ## RC Signing Requirements
 
@@ -103,3 +101,4 @@ Required secrets:
 
 - Caller Windows single-entry: `examples/caller-windows-entry.yml`
 - Caller macOS single-entry: `examples/caller-macos-entry.yml`
+- Caller macOS SwiftPM (Aiden mac) entry: `examples/caller-aiden-mac-swiftpm-entry.yml`

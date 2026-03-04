@@ -43,11 +43,9 @@ jobs:
       windows_rid: win-x64
       windows_solution_path: Aiden.sln
       windows_icon_source: Aiden.TrayMonitor/Assets/aiden.ico
-      windows_helper_script_sources: |
-        Aiden.RuntimeAgent/scripts/download-vm.ps1
-        Aiden.RuntimeAgent/scripts/download-collector.ps1
       windows_postinstall_launch_exe: Aiden.TrayMonitor.exe
       windows_autorun_exe: Aiden.RuntimeAgent.exe
+      runtime_helper_dir: scripts/runtime-deps
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}
       signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}

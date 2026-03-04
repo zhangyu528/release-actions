@@ -35,11 +35,6 @@ on:
         required: false
         default: ''
         type: string
-      windows_helper_script_sources:
-        description: 'Newline-delimited windows helper scripts copied to package/scripts.'
-        required: false
-        default: ''
-        type: string
       windows_postinstall_launch_exe:
         description: 'Executable filename launched after install completes.'
         required: false
@@ -65,10 +60,10 @@ on:
         required: false
         default: ''
         type: string
-      macos_runtime_helper_sources:
-        description: 'Newline-delimited helper scripts copied into macOS installer scripts dir.'
+      macos_runtime_helper_dir:
+        description: 'Relative path inside the caller repo where macOS helper scripts live.'
         required: false
-        default: ''
+        default: 'scripts/runtime-deps'
         type: string
       macos_pkg_identifier:
         description: 'macOS pkg identifier.'
@@ -83,11 +78,6 @@ on:
         options:
           - xcode
           - swiftpm
-      macos_swiftpm_workspace_dir:
-        description: 'Repo root for SwiftPM build.'
-        required: false
-        default: ''
-        type: string
       macos_swiftpm_app_signing_identity:
         description: 'Developer ID Application identity for SwiftPM builds.'
         required: false
@@ -166,7 +156,6 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
           WINDOWS_SOLUTION_PATH: ${{ inputs.windows_solution_path }}
           WINDOWS_ICON_SOURCE: ${{ inputs.windows_icon_source }}
-          WINDOWS_HELPER_SCRIPT_SOURCES: ${{ inputs.windows_helper_script_sources }}
           WINDOWS_POSTINSTALL_LAUNCH_EXE: ${{ inputs.windows_postinstall_launch_exe }}
           WINDOWS_AUTORUN_EXE: ${{ inputs.windows_autorun_exe }}
           SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -178,7 +167,6 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SOLUTION_PATH)) { throw 'windows_solution_path is required when platform=windows.' }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_ICON_SOURCE)) { throw 'windows_icon_source is required when platform=windows.' }
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_HELPER_SCRIPT_SOURCES)) { throw 'windows_helper_script_sources is required when platform=windows.' }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_POSTINSTALL_LAUNCH_EXE)) { throw 'windows_postinstall_launch_exe is required when platform=windows.' }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_AUTORUN_EXE)) { throw 'windows_autorun_exe is required when platform=windows.' }
 
@@ -232,7 +220,6 @@ jobs:
           version: ${{ steps.next_tag.outputs.version }}
           publish_dirs_json: ${{ steps.build_stage.outputs.published_project_dirs_json }}
           icon_source: ${{ inputs.windows_icon_source }}
-          helper_script_sources: ${{ inputs.windows_helper_script_sources }}
 
       - if: ${{ inputs.channel == 'rc' }}
         uses: zhangyu528/release-actions/actions/common/check-signpath-readiness@main
@@ -372,7 +359,6 @@ jobs:
           MACOS_WORKSPACE_PATH: ${{ inputs.macos_workspace_path }}
           MACOS_PROJECT_PATH: ${{ inputs.macos_project_path }}
           MACOS_SCHEME: ${{ inputs.macos_scheme }}
-          MACOS_RUNTIME_HELPER_SOURCES: ${{ inputs.macos_runtime_helper_sources }}
           MACOS_PKG_IDENTIFIER: ${{ inputs.macos_pkg_identifier }}
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
           APPLE_INSTALLER_SIGNING_IDENTITY: ${{ vars.APPLE_INSTALLER_SIGNING_IDENTITY }}
@@ -384,7 +370,6 @@ jobs:
           $hasProject = -not [string]::IsNullOrWhiteSpace($env:MACOS_PROJECT_PATH)
           if ($hasWorkspace -eq $hasProject) { throw 'Provide exactly one of macos_workspace_path or macos_project_path when platform=macos.' }
           if ([string]::IsNullOrWhiteSpace($env:MACOS_SCHEME)) { throw 'macos_scheme is required when platform=macos.' }
-          if ([string]::IsNullOrWhiteSpace($env:MACOS_RUNTIME_HELPER_SOURCES)) { throw 'macos_runtime_helper_sources is required when platform=macos.' }
           if ([string]::IsNullOrWhiteSpace($env:MACOS_PKG_IDENTIFIER)) { throw 'macos_pkg_identifier is required when platform=macos.' }
 
           if ($env:CHANNEL -eq 'rc') {
@@ -441,7 +426,6 @@ jobs:
         uses: zhangyu528/release-actions/actions/macos/swiftpm-build-bundle@main
         with:
           version: ${{ steps.next_tag.outputs.version }}
-          workspace_dir: ${{ inputs.macos_swiftpm_workspace_dir }}
           app_signing_identity: ${{ inputs.macos_swiftpm_app_signing_identity }}
           output_bundle: artifacts/macos/Aiden.app
           output_payload: ${{ inputs.macos_swiftpm_payload_dir }}
@@ -471,7 +455,7 @@ jobs:
           app_bundle_path: ${{ steps.macos_bundle.outputs.macos_app_bundle_path }}
           stage_dir: artifacts/macos/stage
           app_name: Aiden
-          runtime_helper_sources: ${{ inputs.macos_runtime_helper_sources }}
+          runtime_helper_dir: ${{ inputs.macos_runtime_helper_dir }}
 
       - uses: zhangyu528/release-actions/actions/macos/build-pkg-installer@main
         with:

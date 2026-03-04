@@ -42,9 +42,7 @@ jobs:
       macos_workspace_path: Aiden.xcworkspace
       macos_project_path: ''
       macos_scheme: Aiden
-      macos_runtime_helper_sources: |
-        scripts/download-vm.sh
-        scripts/download-collector.sh
+      macos_runtime_helper_dir: scripts/runtime-deps
       macos_pkg_identifier: com.aiden.app
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}

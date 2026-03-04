@@ -10,9 +10,7 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$IconSource = '',
     [Parameter(Mandatory = $false)]
-    [string]$HelperScriptSources = '',
-    [Parameter(Mandatory = $true)]
-    [string]$ActionPath
+    [string]$RuntimeHelperDir = 'scripts/runtime-deps'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,20 +54,25 @@ if (Test-Path $helperDestDir) {
 }
 New-Item -ItemType Directory -Path $helperDestDir -Force | Out-Null
 
-$bundledHelper = Join-Path $ActionPath 'assets/windows/install-runtime-deps.ps1'
-if (-not (Test-Path $bundledHelper)) {
-    throw "Bundled helper script not found: $bundledHelper"
+$workspace = if ($env:GITHUB_WORKSPACE) { Resolve-Path $env:GITHUB_WORKSPACE } else { throw "GITHUB_WORKSPACE is unavailable." }
+$helperRoot = if ([System.IO.Path]::IsPathRooted($RuntimeHelperDir)) {
+    Resolve-Path $RuntimeHelperDir
 }
-Copy-Item -Path $bundledHelper -Destination (Join-Path $helperDestDir 'install-runtime-deps.ps1') -Force
+else {
+    Resolve-Path (Join-Path $workspace $RuntimeHelperDir)
+}
+if (-not (Test-Path $helperRoot)) {
+    throw "Runtime helper directory not found: $helperRoot"
+}
 
-if (-not [string]::IsNullOrWhiteSpace($HelperScriptSources)) {
-    $extraScripts = @($HelperScriptSources -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    foreach ($scriptPath in $extraScripts) {
-        if (-not (Test-Path $scriptPath)) {
-            throw "Helper script not found: $scriptPath"
-        }
-        Copy-Item -Path $scriptPath -Destination $helperDestDir -Force
-    }
+$helperFiles = Get-ChildItem -Path $helperRoot -File -Filter '*.ps1'
+if ($helperFiles.Count -eq 0) {
+    throw "No runtime helper scripts (*.ps1) were found under $helperRoot"
+}
+
+foreach ($file in $helperFiles) {
+    $dest = Join-Path $helperDestDir $file.Name
+    Copy-Item -Path $file.FullName -Destination $dest -Force
 }
 
 $info = Get-ChildItem -Path $PackageDir -Recurse -File | Measure-Object -Property Length -Sum

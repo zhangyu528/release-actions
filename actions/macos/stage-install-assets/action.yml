@@ -14,9 +14,11 @@ inputs:
     description: 'Application display name used for runtime install root.'
     required: false
     default: 'Aiden'
-  runtime_helper_sources:
-    description: 'Newline-delimited helper scripts copied into stage scripts directory.'
-    required: true
+  runtime_helper_dir:
+    description: 'Relative path inside the caller repo where helper scripts live.'
+    required: false
+    default: 'scripts/runtime-deps'
+    type: string
 
 outputs:
   staged_app_bundle_path:
@@ -40,7 +42,4 @@ runs:
           -AppBundlePath '${{ inputs.app_bundle_path }}' `
           -StageDir '${{ inputs.stage_dir }}' `
           -AppName '${{ inputs.app_name }}' `
-          -ActionPath '${{ github.action_path }}' `
-          -RuntimeHelperSources @'
-        ${{ inputs.runtime_helper_sources }}
-        '@
+          -RuntimeHelperDir '${{ inputs.runtime_helper_dir }}'

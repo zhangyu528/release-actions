@@ -5,10 +5,8 @@ param(
     [string]$StageDir = 'artifacts/macos/stage',
     [Parameter(Mandatory = $false)]
     [string]$AppName = 'Aiden',
-    [Parameter(Mandatory = $true)]
-    [string]$ActionPath,
-    [Parameter(Mandatory = $true)]
-    [string]$RuntimeHelperSources
+    [Parameter(Mandatory = $false)]
+    [string]$RuntimeHelperDir = 'scripts/runtime-deps'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,22 +28,29 @@ Copy-Item -Path $AppBundlePath -Destination $stagedAppBundlePath -Recurse -Force
 $scriptsDir = Join-Path $StageDir 'scripts'
 New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
 
-$bundledInstaller = Join-Path $ActionPath 'assets/macos/install-runtime-deps.sh'
-if (-not (Test-Path $bundledInstaller)) {
-    throw "Bundled installer runtime script not found: $bundledInstaller"
+$workspace = if ($env:GITHUB_WORKSPACE) { Resolve-Path $env:GITHUB_WORKSPACE } else { throw "GITHUB_WORKSPACE is unavailable." }
+$helperRoot = if ([System.IO.Path]::IsPathRooted($RuntimeHelperDir)) {
+    Resolve-Path $RuntimeHelperDir
 }
-Copy-Item -Path $bundledInstaller -Destination (Join-Path $scriptsDir 'install-runtime-deps.sh') -Force
-
-$helpers = @($RuntimeHelperSources -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-if ($helpers.Count -eq 0) {
-    throw 'runtime_helper_sources must contain at least one script path.'
+else {
+    Resolve-Path (Join-Path $workspace $RuntimeHelperDir)
+}
+if (-not (Test-Path $helperRoot)) {
+    throw "Runtime helper directory not found: $helperRoot"
 }
 
-foreach ($helper in $helpers) {
-    if (-not (Test-Path $helper)) {
-        throw "Runtime helper script not found: $helper"
-    }
-    Copy-Item -Path $helper -Destination $scriptsDir -Force
+$helperFiles = Get-ChildItem -Path $helperRoot -File
+if ($helperFiles.Count -eq 0) {
+    throw "No helper scripts found in $helperRoot"
+}
+
+foreach ($file in $helperFiles) {
+    Copy-Item -Path $file.FullName -Destination (Join-Path $scriptsDir $file.Name) -Force
+}
+
+$installerScript = Join-Path $scriptsDir 'install-runtime-deps.sh'
+if (-not (Test-Path $installerScript)) {
+    throw "Installer helper script missing from $helperRoot: install-runtime-deps.sh"
 }
 
 $postinstallPath = Join-Path $scriptsDir 'postinstall'
@@ -57,9 +62,9 @@ exec "\$SCRIPT_DIR/install-runtime-deps.sh" "$AppName"
 "@
 $postinstall | Set-Content -Path $postinstallPath -Encoding Ascii
 
-bash -lc "chmod +x '$scriptsDir/install-runtime-deps.sh' '$postinstallPath'"
-foreach ($helper in $helpers) {
-    $filename = Split-Path -Leaf $helper
+bash -lc "chmod +x '$installerScript' '$postinstallPath'"
+foreach ($file in $helperFiles) {
+    $filename = $file.Name
     bash -lc "chmod +x '$scriptsDir/$filename'"
 }
 
