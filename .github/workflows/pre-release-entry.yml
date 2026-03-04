@@ -452,7 +452,7 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ inputs.macos_build_system }}' -eq 'swiftpm') {
-            if (${{ steps.macos_swiftpm.outputs.app_bundle_path }} -eq '') {
+            if ("${{ steps.macos_swiftpm.outputs.app_bundle_path }}" -eq '') {
               throw 'SwiftPM build bundle did not emit app_bundle_path.'
             }
             "macos_app_bundle_path=${{ steps.macos_swiftpm.outputs.app_bundle_path }}" >> $env:GITHUB_OUTPUT
