@@ -27,6 +27,7 @@ jobs:
       macos_build_system: swiftpm
       macos_swiftpm_app_signing_identity: ${{ secrets.APP_SIGN_IDENTITY }}
       macos_runtime_helper_dir: scripts/runtime-deps
+      macos_app_identifier: com.aiden.app
       macos_pkg_identifier: com.aiden.mac
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}

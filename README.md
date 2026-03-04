@@ -48,6 +48,7 @@ jobs:
       macos_project_path: ''
       macos_scheme: Aiden
       macos_runtime_helper_dir: scripts/runtime-deps
+      macos_app_identifier: com.aiden.app
       macos_pkg_identifier: com.aiden.app
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -59,6 +60,7 @@ macOS app build also writes release-computed version into bundle build settings:
 - `MARKETING_VERSION`: numeric `major.minor.patch` (for example `0.1.0`)
 - `CURRENT_PROJECT_VERSION`: prerelease sequence or `0` (for example `3` for `0.1.0-rc.3`)
 macOS installer/checksum output paths and staging layout are now internal defaults in release-actions.
+If you provide `macos_app_identifier`, the reusable entry will reuse it for both the SwiftPM bundle (when needed) and as the default `macos_pkg_identifier`, so you only need to set a single app identifier when the pkg and bundle identifiers are the same. Set `macos_pkg_identifier` explicitly only when you want a different package identity.
 
 macOS runtime helper scripts now live under `scripts/runtime-deps/` in the caller repo; `stage-install-assets` stages every file from that directory so installers automatically include `install-runtime-deps.sh`, `download-vm.sh`, `download-collector.sh`, etc.
 

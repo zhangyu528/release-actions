@@ -70,6 +70,11 @@ on:
         required: false
         default: ''
         type: string
+      macos_app_identifier:
+        description: 'Optional bundle identifier that is reused for pkg identifier when explicit pkg id is omitted.'
+        required: false
+        default: ''
+        type: string
       macos_build_system:
         description: 'macOS build system: xcode or swiftpm.'
         required: false
@@ -353,13 +358,16 @@ jobs:
       uploaded_count: ${{ steps.publish_release.outputs.uploaded_count }}
     steps:
       - name: Validate macOS inputs
+        id: validate_macos_inputs
         shell: pwsh
         env:
           CHANNEL: ${{ inputs.channel }}
           MACOS_WORKSPACE_PATH: ${{ inputs.macos_workspace_path }}
           MACOS_PROJECT_PATH: ${{ inputs.macos_project_path }}
           MACOS_SCHEME: ${{ inputs.macos_scheme }}
+          MACOS_RUNTIME_HELPER_DIR: ${{ inputs.macos_runtime_helper_dir }}
           MACOS_PKG_IDENTIFIER: ${{ inputs.macos_pkg_identifier }}
+          MACOS_APP_IDENTIFIER: ${{ inputs.macos_app_identifier }}
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
           APPLE_INSTALLER_SIGNING_IDENTITY: ${{ vars.APPLE_INSTALLER_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
@@ -370,7 +378,13 @@ jobs:
           $hasProject = -not [string]::IsNullOrWhiteSpace($env:MACOS_PROJECT_PATH)
           if ($hasWorkspace -eq $hasProject) { throw 'Provide exactly one of macos_workspace_path or macos_project_path when platform=macos.' }
           if ([string]::IsNullOrWhiteSpace($env:MACOS_SCHEME)) { throw 'macos_scheme is required when platform=macos.' }
-          if ([string]::IsNullOrWhiteSpace($env:MACOS_PKG_IDENTIFIER)) { throw 'macos_pkg_identifier is required when platform=macos.' }
+          if ([string]::IsNullOrWhiteSpace($env:MACOS_RUNTIME_HELPER_DIR)) { throw 'macos_runtime_helper_dir is required when platform=macos.' }
+          $pkgIdentifier = $env:MACOS_PKG_IDENTIFIER
+          if ([string]::IsNullOrWhiteSpace($pkgIdentifier)) {
+            $pkgIdentifier = $env:MACOS_APP_IDENTIFIER
+          }
+          if ([string]::IsNullOrWhiteSpace($pkgIdentifier)) { throw 'Provide macos_pkg_identifier or macos_app_identifier when platform=macos.' }
+          "resolved_pkg_identifier=$pkgIdentifier" >> $env:GITHUB_OUTPUT
 
           if ($env:CHANNEL -eq 'rc') {
             $missing = @()
@@ -462,7 +476,7 @@ jobs:
           app_bundle_path: artifacts/macos/stage/Aiden.app
           scripts_dir: artifacts/macos/stage/scripts
           pkg_path: ${{ steps.macos_paths.outputs.pkg_path }}
-          identifier: ${{ inputs.macos_pkg_identifier }}
+          identifier: ${{ steps.validate_macos_inputs.outputs.resolved_pkg_identifier }}
           version: ${{ steps.next_tag.outputs.version }}
 
       - if: ${{ inputs.channel == 'rc' }}

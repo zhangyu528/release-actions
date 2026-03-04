@@ -43,6 +43,7 @@ jobs:
       macos_project_path: ''
       macos_scheme: Aiden
       macos_runtime_helper_dir: scripts/runtime-deps
+      macos_app_identifier: com.aiden.app
       macos_pkg_identifier: com.aiden.app
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}
