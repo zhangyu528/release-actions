@@ -37,7 +37,7 @@ function EnsureProduct {
 EnsureProduct -ProductName 'AidenTrayMac'
 EnsureProduct -ProductName 'AidenRuntimeAgent'
 
-$appRoot = Resolve-Path $AppOutputPath
+$appRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $AppOutputPath))
 New-Item -ItemType Directory -Path (Split-Path -Parent $appRoot) -Force | Out-Null
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $appRoot '*')
 New-Item -ItemType Directory -Path $appRoot -Force | Out-Null
