@@ -58,6 +58,7 @@ Copy-Item -Path (Join-Path $buildDir 'AidenRuntimeAgent') -Destination $agentBin
 chmod 755 $trayBinary
 chmod 755 $agentBinary
 
+$infoPlistPath = Join-Path $appContents 'Info.plist'
 $infoPlist = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -84,7 +85,7 @@ $infoPlist = @"
 </dict>
 </plist>
 "@
-Set-Content -Value $infoPlist -Path (Join-Path $resourcesDir 'Info.plist') -Encoding UTF8
+Set-Content -Value $infoPlist -Path $infoPlistPath -Encoding UTF8
 
 if (-not [string]::IsNullOrWhiteSpace($AppSigningIdentity)) {
     codesign --force --options runtime --timestamp --deep --sign "$AppSigningIdentity" "$appRoot"
