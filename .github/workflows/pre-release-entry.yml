@@ -79,10 +79,7 @@ on:
         description: 'macOS build system: xcode or swiftpm.'
         required: false
         default: 'xcode'
-        type: choice
-        options:
-          - xcode
-          - swiftpm
+        type: string
       macos_swiftpm_app_signing_identity:
         description: 'Developer ID Application identity for SwiftPM builds.'
         required: false
