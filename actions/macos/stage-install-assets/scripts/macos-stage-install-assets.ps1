@@ -54,12 +54,12 @@ if (-not (Test-Path $installerScript)) {
 }
 
 $postinstallPath = Join-Path $scriptsDir 'postinstall'
-$postinstall = @"
+$postinstall = @'
 #!/bin/bash
 set -euo pipefail
-SCRIPT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
-exec "\$SCRIPT_DIR/install-runtime-deps.sh" "$AppName"
-"@
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$SCRIPT_DIR/install-runtime-deps.sh" "{0}"
+'@ -f $AppName
 $postinstall | Set-Content -Path $postinstallPath -Encoding Ascii
 
 bash -lc "chmod +x '$installerScript' '$postinstallPath'"
