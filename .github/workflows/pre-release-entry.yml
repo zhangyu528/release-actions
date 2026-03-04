@@ -75,6 +75,29 @@ on:
         required: false
         default: ''
         type: string
+      macos_build_system:
+        description: 'macOS build system: xcode or swiftpm.'
+        required: false
+        default: 'xcode'
+        type: choice
+        options:
+          - xcode
+          - swiftpm
+      macos_swiftpm_workspace_dir:
+        description: 'Repo root for SwiftPM build.'
+        required: false
+        default: ''
+        type: string
+      macos_swiftpm_app_signing_identity:
+        description: 'Developer ID Application identity for SwiftPM builds.'
+        required: false
+        default: ''
+        type: string
+      macos_swiftpm_payload_dir:
+        description: 'Directory where SwiftPM helper stages payload.'
+        required: false
+        default: 'artifacts/macos/payload'
+        type: string
       release_assets_manifest_json:
         description: 'Optional explicit release assets manifest JSON. If empty, workflow generates default manifest by platform.'
         required: false
@@ -398,7 +421,8 @@ jobs:
           "pkg_path=$pkgPath" >> $env:GITHUB_OUTPUT
           "checksums_file=$env:CHECKSUMS_FILE" >> $env:GITHUB_OUTPUT
 
-      - uses: zhangyu528/release-actions/actions/macos/build-bundle@main
+      - if: ${{ inputs.macos_build_system == 'xcode' }}
+        uses: zhangyu528/release-actions/actions/macos/build-bundle@main
         with:
           version: ${{ steps.next_tag.outputs.version }}
           workspace_path: ${{ inputs.macos_workspace_path }}
@@ -411,6 +435,31 @@ jobs:
           export_options_plist: ''
           app_output_path: artifacts/macos/Aiden.app
 
+      - if: ${{ inputs.macos_build_system == 'swiftpm' }}
+        name: Build SwiftPM bundle
+        id: macos_swiftpm
+        uses: zhangyu528/release-actions/actions/macos/swiftpm-build-bundle@main
+        with:
+          version: ${{ steps.next_tag.outputs.version }}
+          workspace_dir: ${{ inputs.macos_swiftpm_workspace_dir }}
+          app_signing_identity: ${{ inputs.macos_swiftpm_app_signing_identity }}
+          output_bundle: artifacts/macos/Aiden.app
+          output_payload: ${{ inputs.macos_swiftpm_payload_dir }}
+
+      - name: Resolve macOS bundle path
+        id: macos_bundle
+        shell: pwsh
+        run: |
+          if ('${{ inputs.macos_build_system }}' -eq 'swiftpm') {
+            if (${{ steps.macos_swiftpm.outputs.app_bundle_path }} -eq '') {
+              throw 'SwiftPM build bundle did not emit app_bundle_path.'
+            }
+            "macos_app_bundle_path=${{ steps.macos_swiftpm.outputs.app_bundle_path }}" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "macos_app_bundle_path=artifacts/macos/Aiden.app" >> $env:GITHUB_OUTPUT
+          }
+
       - if: ${{ inputs.channel == 'rc' }}
         uses: zhangyu528/release-actions/actions/macos/sign-and-verify-app-bundle@main
         with:
@@ -419,7 +468,7 @@ jobs:
 
       - uses: zhangyu528/release-actions/actions/macos/stage-install-assets@main
         with:
-          app_bundle_path: artifacts/macos/Aiden.app
+          app_bundle_path: ${{ steps.macos_bundle.outputs.macos_app_bundle_path }}
           stage_dir: artifacts/macos/stage
           app_name: Aiden
           runtime_helper_sources: ${{ inputs.macos_runtime_helper_sources }}

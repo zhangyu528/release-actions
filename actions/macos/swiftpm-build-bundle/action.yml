@@ -1,0 +1,56 @@
+name: 'macOS SwiftPM Build Bundle'
+author: 'zhangyu528'
+description: 'Builds SwiftPM products into an .app bundle for macOS releases.'
+
+inputs:
+  version:
+    description: 'Release version without leading v.'
+    required: true
+  workspace_dir:
+    description: 'Repo root to run swift build from.'
+    required: false
+    default: ''
+  app_signing_identity:
+    description: 'Developer ID Application identity (optional).'
+    required: false
+    default: ''
+  tray_bundle_id:
+    description: 'Bundle identifier for the tray app.'
+    required: false
+    default: 'com.aiden.traymac'
+  agent_bundle_id:
+    description: 'Bundle identifier for the bootstrap agent.'
+    required: false
+    default: 'com.aiden.runtimeagent'
+  output_bundle:
+    description: 'Output path for the generated .app bundle.'
+    required: false
+    default: 'artifacts/macos/Aiden.app'
+  output_payload:
+    description: 'Directory to stage payload files.'
+    required: false
+    default: 'artifacts/macos/payload'
+
+outputs:
+  app_bundle_path:
+    description: 'Generated .app bundle path.'
+    value: ${{ steps.build.outputs.app_bundle_path }}
+  payload_dir:
+    description: 'Directory containing payload contents.'
+    value: ${{ steps.build.outputs.payload_dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build SwiftPM bundle
+      id: build
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/scripts/macos-swiftpm-build-bundle.ps1" `
+          -Version '${{ inputs.version }}' `
+          -WorkspaceDir '${{ inputs.workspace_dir }}' `
+          -AppOutputPath '${{ inputs.output_bundle }}' `
+          -PayloadDir '${{ inputs.output_payload }}' `
+          -TrayBundleIdentifier '${{ inputs.tray_bundle_id }}' `
+          -AgentBundleIdentifier '${{ inputs.agent_bundle_id }}' `
+          -AppSigningIdentity '${{ inputs.app_signing_identity }}'
