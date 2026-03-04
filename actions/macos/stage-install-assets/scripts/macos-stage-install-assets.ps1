@@ -50,7 +50,7 @@ foreach ($file in $helperFiles) {
 
 $installerScript = Join-Path $scriptsDir 'install-runtime-deps.sh'
 if (-not (Test-Path $installerScript)) {
-    throw "Installer helper script missing from $helperRoot: install-runtime-deps.sh"
+    throw "Installer helper script missing from ${helperRoot}: install-runtime-deps.sh"
 }
 
 $postinstallPath = Join-Path $scriptsDir 'postinstall'
