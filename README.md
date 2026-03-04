@@ -34,6 +34,16 @@ Windows app build also writes release-computed version into binaries:
 - `Version` and `InformationalVersion`: full semantic version (for example `0.1.0-rc.3`)
 - `AssemblyVersion` and `FileVersion`: numeric 4-part version (for example `0.1.0.3`)
 
+### Entrypoint secrets
+
+The reusable workflow exposes the following secrets through `on.workflow_call.secrets`. Callers must map them to their own settings in the `secrets:` block that invokes the entrypoint:
+
+- `repo_token`: used by release/chart publishing steps and cleanup scripts. Most callers simply forward `${{ secrets.GITHUB_TOKEN }}`.
+- `signpath_api_token`: required for Windows RC signing (`sign-and-verify-app-binaries` / `sign-and-verify-installer`).
+- `apple_id` / `apple_app_password`: required when `channel=rc` for macOS notarization/stapling via `sign-notarize-staple-verify-installer`.
+
+Once declared at the workflow entry, any job or action inside the reusable workflow can consume these secrets directly via `${{ secrets.xxx }}`. Adding new secret requirements only requires extending `workflow_call.secrets` and referencing them where needed.
+
 ### macOS caller example
 
 ```yaml
